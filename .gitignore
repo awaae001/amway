@@ -20,4 +20,4 @@
 
 # Build results
 /amway
-data/
+data/*

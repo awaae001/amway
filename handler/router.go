@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"strings"
+
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -34,7 +36,11 @@ func OnInteractionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			handler(s, i)
 		}
 	case discordgo.InteractionMessageComponent:
-		if handler, ok := componentHandlers[i.MessageComponentData().CustomID]; ok {
+		customID := i.MessageComponentData().CustomID
+		parts := strings.SplitN(customID, ":", 2)
+		handlerKey := parts[0]
+
+		if handler, ok := componentHandlers[handlerKey]; ok {
 			handler(s, i)
 		}
 	case discordgo.InteractionModalSubmit:
