@@ -1,8 +1,12 @@
 package main
 
 import (
+	"amway/command"
 	"amway/config"
+	"amway/handler/amway"
+	"amway/utils"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -11,6 +15,8 @@ import (
 )
 
 func main() {
+	utils.InitDB()
+
 	err := config.LoadConfig()
 	if err != nil {
 		fmt.Println("Error loading config:", err)
@@ -24,37 +30,33 @@ func main() {
 		return
 	}
 
-	dg.AddHandler(messageCreate)
+	dg.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+		if i.Type == discordgo.InteractionApplicationCommand {
+			if i.ApplicationCommandData().Name == command.CreatePanelCommand.Name {
+				amway.CreatePanelCommandHandler(s, i)
+			}
+		}
+	})
+
 	dg.Identify.Intents = discordgo.IntentsGuildMessages
+
 	err = dg.Open()
 	if err != nil {
 		fmt.Println("error opening connection,", err)
 		return
 	}
 
-	// Wait here until CTRL-C or other term signal is received.
-	fmt.Println("Bot is now running.  Press CTRL-C to exit.")
+	for _, guildID := range config.Cfg.Commands.Allowguils {
+		_, err := dg.ApplicationCommandCreate(dg.State.User.ID, guildID, command.CreatePanelCommand)
+		if err != nil {
+			log.Fatalf("Cannot create command: %v", err)
+		}
+	}
+
+	fmt.Println("Bot is now running. Press CTRL-C to exit.")
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
 	<-sc
 
 	dg.Close()
-}
-
-// This function will be called (due to AddHandler) every time a new
-// message is created on any channel that the authenticated bot has access to.
-func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
-
-	if m.Author.ID == s.State.User.ID {
-		return
-	}
-	// If the message is "ping" reply with "Pong!"
-	if m.Content == "ping" {
-		s.ChannelMessageSend(m.ChannelID, "Pong!")
-	}
-
-	// If the message is "pong" reply with "Ping!"
-	if m.Content == "pong" {
-		s.ChannelMessageSend(m.ChannelID, "Ping!")
-	}
 }

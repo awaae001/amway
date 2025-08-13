@@ -6,6 +6,7 @@ toolchain go1.24.6
 
 require (
 	github.com/bwmarrin/discordgo v0.29.0
+	github.com/mattn/go-sqlite3 v1.14.31
 	github.com/spf13/viper v1.20.1
 )
 

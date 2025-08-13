@@ -1,1 +1,15 @@
-# Bot token is loaded from environment variable: TOKEN
+commands:
+  allowguils:
+    - 1369594465383219293
+  auth:
+    Developers:
+      - 1398101714179063949
+    AdminsRoles:
+      - 1371272565926002758
+    Guest:
+      - 0
+
+amwayBot:
+  amway:
+    review_channel_id: 1405181823838982184
+    publish_channel_id: 1405181458389139507

@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package recommendation;
+
+// Service Definition
+service RecommendationService {
+  // 根据 ID 获取一个安利小纸条
+  rpc GetRecommendation (GetRecommendationRequest) returns (RecommendationSlip);
+
+  // 查询一个用户ID全部的小纸条
+  rpc GetRecommendationsByAuthor (GetRecommendationsByAuthorRequest) returns (GetRecommendationsByAuthorResponse);
+}
+
+// Message Definitions
+message RecommendationSlip {
+  string id = 1;         // 安利小纸条的唯一 ID
+  string author_id = 2;  // 作者的 Discord 用户 ID
+  string author_nickname = 3; // 作者当时的昵称
+  string content = 4;    // 安利内容
+  string post_url = 5;   // 指向相关帖子的 URL
+  int32 upvotes = 6;     // 获得的“点赞”数
+  int32 questions = 7;   // 获得的“疑问”数
+  int32 downvotes = 8;   // 获得的“点踩”数
+  int64 created_at = 9;  // 创建时间戳 (Unix timestamp)
+  string reviewer_id = 10; // 审定该小纸条的管理员 ID
+  bool is_blocked = 11;  // 标记该小纸条是否已被屏蔽
+  int64 guild_id = 12; // 小纸条所属的 Discord 服务器 ID
+}
+
+message GetRecommendationRequest {
+  string id = 1;
+}
+
+message GetRecommendationsByAuthorRequest {
+  string author_id = 1;
+  int64 guild_id = 2;
+}
+
+message GetRecommendationsByAuthorResponse {
+  repeated RecommendationSlip recommendations = 1;
+}

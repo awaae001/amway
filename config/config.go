@@ -1,14 +1,12 @@
 package config
 
 import (
+	"amway/model"
+
 	"github.com/spf13/viper"
 )
 
-type Config struct {
-	Token string `mapstructure:"TOKEN"`
-}
-
-var Cfg Config
+var Cfg model.Config
 
 func LoadConfig() (err error) {
 	viper.AddConfigPath(".")
