@@ -4,6 +4,7 @@ import (
 	"amway/command"
 	"amway/config"
 	"amway/handler"
+	"amway/handler/amway"
 	"amway/utils"
 	"fmt"
 	"log"
@@ -22,6 +23,9 @@ func main() {
 		fmt.Println("Error loading config:", err)
 		return
 	}
+
+	// 注册amway处理程序
+	amway.RegisterHandlers()
 
 	// 调试信息：检查token是否被正确读取
 	if config.Cfg.Token == "" {

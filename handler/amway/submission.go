@@ -2,23 +2,12 @@ package amway
 
 import (
 	"amway/config"
-	"amway/handler"
 	"amway/utils"
 	"fmt"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
 )
-
-func init() {
-	handler.AddComponentHandler("create_submission_button", createSubmissionButtonHandler)
-	handler.AddModalHandler("submission_modal", submissionModalHandler)
-	handler.AddComponentHandler("approve_submission", approveSubmissionHandler)
-	handler.AddComponentHandler("reject_submission", rejectSubmissionHandler)
-	handler.AddComponentHandler("ignore_submission", ignoreSubmissionHandler)
-	handler.AddComponentHandler("ban_submission", banSubmissionHandler)
-	handler.AddComponentHandler("delete_submission", deleteSubmissionHandler)
-}
 
 func createSubmissionButtonHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	// 检查用户是否被封禁

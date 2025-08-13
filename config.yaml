@@ -5,6 +5,7 @@ commands:
   auth:
     Developers:
       - 1398101714179063949
+      - 1350402867605016597
     AdminsRoles:
       - 1371272565926002758
     Guest:
