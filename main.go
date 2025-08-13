@@ -3,7 +3,7 @@ package main
 import (
 	"amway/command"
 	"amway/config"
-	"amway/handler/amway"
+	"amway/handler"
 	"amway/utils"
 	"fmt"
 	"log"
@@ -23,6 +23,13 @@ func main() {
 		return
 	}
 
+	// 调试信息：检查token是否被正确读取
+	if config.Cfg.Token == "" {
+		fmt.Println("Warning: Token is empty!")
+	} else {
+		fmt.Printf("Token loaded successfully (length: %d)\n", len(config.Cfg.Token))
+	}
+
 	// Create a new Discord session using the provided bot token.
 	dg, err := discordgo.New("Bot " + config.Cfg.Token)
 	if err != nil {
@@ -30,15 +37,10 @@ func main() {
 		return
 	}
 
-	dg.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		if i.Type == discordgo.InteractionApplicationCommand {
-			if i.ApplicationCommandData().Name == command.CreatePanelCommand.Name {
-				amway.CreatePanelCommandHandler(s, i)
-			}
-		}
-	})
+	dg.AddHandler(handler.OnInteractionCreate)
 
-	dg.Identify.Intents = discordgo.IntentsGuildMessages
+	// 设置必要的intents
+	dg.Identify.Intents = discordgo.IntentsGuildMessages | discordgo.IntentsGuilds
 
 	err = dg.Open()
 	if err != nil {

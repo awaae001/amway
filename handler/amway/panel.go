@@ -1,14 +1,20 @@
 package amway
 
 import (
+	"amway/command"
 	"amway/config"
+	"amway/handler"
 	"amway/utils"
 	"fmt"
 
 	"github.com/bwmarrin/discordgo"
 )
 
-func CreatePanelCommandHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func init() {
+	handler.AddCommandHandler(command.CreatePanelCommand.Name, createPanelCommandHandler)
+}
+
+func createPanelCommandHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	// 检查权限
 	if !utils.CheckAuth(i.Member.User.ID, i.Member.Roles) {
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -31,7 +37,7 @@ func CreatePanelCommandHandler(s *discordgo.Session, i *discordgo.InteractionCre
 	button := discordgo.Button{
 		Label:    "点击投稿",
 		Style:    discordgo.PrimaryButton,
-		CustomID: "create_submission_button",
+		CustomID: "create_submission_button", // This CustomID will be used by the submission handler
 	}
 
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{

@@ -2,7 +2,7 @@ package model
 
 // Config 对应于 config.yaml 的顶级结构
 type Config struct {
-	Token    string   `mapstructure:"TOKEN"`
+	Token    string   `mapstructure:"token"`
 	Commands Commands `mapstructure:"commands"`
 	AmwayBot AmwayBot `mapstructure:"amwayBot"`
 }
