@@ -44,7 +44,11 @@ func OnInteractionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			handler(s, i)
 		}
 	case discordgo.InteractionModalSubmit:
-		if handler, ok := modalHandlers[i.ModalSubmitData().CustomID]; ok {
+		customID := i.ModalSubmitData().CustomID
+		parts := strings.SplitN(customID, ":", 2)
+		handlerKey := parts[0]
+
+		if handler, ok := modalHandlers[handlerKey]; ok {
 			handler(s, i)
 		}
 	}

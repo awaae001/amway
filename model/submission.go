@@ -2,9 +2,17 @@ package model
 
 // Submission represents a submission record from recommendations table.
 type Submission struct {
-	ID        string
-	UserID    string
-	URL       string
-	Content   string
-	Timestamp int64
+	ID                    string
+	UserID                string
+	URL                   string
+	Content               string
+	Timestamp             int64
+	OriginalTitle         string
+	OriginalAuthor        string
+	OriginalPostTimestamp string
+	RecommendTitle        string
+	RecommendContent      string
+	GuildID               string
+	AuthorNickname        string
+	FinalAmwayMessageID   string
 }

@@ -34,7 +34,13 @@ func InitDB() {
 		created_at INTEGER NOT NULL,
 		reviewer_id TEXT,
 		is_blocked INTEGER NOT NULL DEFAULT 0,
-		guild_id INTEGER NOT NULL
+		guild_id TEXT,
+		original_title TEXT,
+		original_author TEXT,
+		recommend_title TEXT,
+		recommend_content TEXT,
+		original_post_timestamp TEXT,
+		final_amway_message_id TEXT
 	);`
 
 	_, err = db.Exec(createRecommendationsTableSQL)
@@ -53,6 +59,24 @@ func InitDB() {
 	_, err = db.Exec(createBannedUsersTableSQL)
 	if err != nil {
 		log.Fatalf("Failed to create banned_users table: %v", err)
+	}
+
+	// SQL statement to create the 'id_counter' table for sequential ID generation.
+	createIdCounterTableSQL := `
+	CREATE TABLE IF NOT EXISTS id_counter (
+		counter_name TEXT PRIMARY KEY,
+		current_value INTEGER NOT NULL DEFAULT 0
+	);`
+
+	_, err = db.Exec(createIdCounterTableSQL)
+	if err != nil {
+		log.Fatalf("Failed to create id_counter table: %v", err)
+	}
+
+	// Initialize the submission counter if it doesn't exist
+	_, err = db.Exec("INSERT OR IGNORE INTO id_counter(counter_name, current_value) VALUES('submission_id', 0)")
+	if err != nil {
+		log.Fatalf("Failed to initialize submission counter: %v", err)
 	}
 
 	log.Println("Database and tables initialized successfully in data/amway.db")
@@ -78,28 +102,69 @@ func IsUserBanned(userID string) (bool, error) {
 	return true, nil // User is found in the banned list
 }
 
-// AddSubmission adds a new submission to the recommendations table.
-func AddSubmission(userID, url, title, content string) (string, error) {
+// AddSubmission adds a new submission to the recommendations table (legacy version).
+func AddSubmission(userID, url, title, content, guildID, authorNickname string) (string, error) {
+	return AddSubmissionV2(userID, url, title, content, "", "", "", guildID, authorNickname)
+}
+
+// AddSubmissionV2 adds a new submission with original post info and recommendation content.
+func AddSubmissionV2(userID, url, recommendTitle, recommendContent, originalTitle, originalAuthor string, originalPostTimestamp string, guildID string, authorNickname string) (string, error) {
 	db, err := sql.Open("sqlite3", "./data/amway.db")
 	if err != nil {
 		return "", err
 	}
 	defer db.Close()
 
-	// Generate a unique ID (using timestamp + userID for simplicity)
-	submissionID := fmt.Sprintf("%d_%s", time.Now().Unix(), userID)
+	// Start a transaction to ensure atomic ID generation
+	tx, err := db.Begin()
+	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback()
 
-	stmt, err := db.Prepare(`INSERT INTO recommendations(id, author_id, content, post_url, created_at, guild_id)
-		VALUES(?, ?, ?, ?, ?, ?)`)
+	// Get and increment the counter
+	var currentID int
+	err = tx.QueryRow("SELECT current_value FROM id_counter WHERE counter_name = 'submission_id'").Scan(&currentID)
+	if err != nil {
+		return "", err
+	}
+
+	// Increment the counter
+	newID := currentID + 1
+	_, err = tx.Exec("UPDATE id_counter SET current_value = ? WHERE counter_name = 'submission_id'", newID)
+	if err != nil {
+		return "", err
+	}
+
+	// Generate submission ID as string
+	submissionID := fmt.Sprintf("%d", newID)
+
+	// Insert the new submission with all fields
+	stmt, err := tx.Prepare(`INSERT INTO recommendations(
+		id, author_id, author_nickname, content, post_url, created_at, guild_id,
+		original_title, original_author, recommend_title, recommend_content, original_post_timestamp
+	) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return "", err
 	}
 	defer stmt.Close()
 
-	// Combine title and content for the content field
-	fullContent := fmt.Sprintf("**%s**\n\n%s", title, content)
+	// For legacy compatibility, if original fields are empty, use the old format
+	fullContent := recommendContent
+	if originalTitle == "" && originalAuthor == "" {
+		fullContent = fmt.Sprintf("**%s**\n\n%s", recommendTitle, recommendContent)
+	}
 
-	_, err = stmt.Exec(submissionID, userID, fullContent, url, time.Now().Unix(), 0)
+	_, err = stmt.Exec(
+		submissionID, userID, authorNickname, fullContent, url, time.Now().Unix(), guildID,
+		originalTitle, originalAuthor, recommendTitle, recommendContent, originalPostTimestamp,
+	)
+	if err != nil {
+		return "", err
+	}
+
+	// Commit the transaction
+	err = tx.Commit()
 	if err != nil {
 		return "", err
 	}
@@ -182,13 +247,44 @@ func GetSubmission(submissionID string) (*model.Submission, error) {
 	}
 	defer db.Close()
 
-	row := db.QueryRow("SELECT id, author_id, content, post_url, created_at FROM recommendations WHERE id = ?", submissionID)
+	row := db.QueryRow(`SELECT
+		id, author_id, COALESCE(author_nickname, '') as author_nickname, content, post_url, created_at,
+		COALESCE(guild_id, '') as guild_id,
+		COALESCE(original_title, '') as original_title,
+		COALESCE(original_author, '') as original_author,
+		COALESCE(recommend_title, '') as recommend_title,
+		COALESCE(recommend_content, '') as recommend_content,
+		COALESCE(original_post_timestamp, '') as original_post_timestamp,
+		COALESCE(final_amway_message_id, '') as final_amway_message_id
+	FROM recommendations WHERE id = ?`, submissionID)
 
 	var sub model.Submission
-	err = row.Scan(&sub.ID, &sub.UserID, &sub.Content, &sub.URL, &sub.Timestamp)
+	err = row.Scan(
+		&sub.ID, &sub.UserID, &sub.AuthorNickname, &sub.Content, &sub.URL, &sub.Timestamp,
+		&sub.GuildID, &sub.OriginalTitle, &sub.OriginalAuthor,
+		&sub.RecommendTitle, &sub.RecommendContent, &sub.OriginalPostTimestamp, &sub.FinalAmwayMessageID,
+	)
 	if err != nil {
 		return nil, err
 	}
 
 	return &sub, nil
+}
+
+// UpdateFinalAmwayMessageID updates the final_amway_message_id for a submission.
+func UpdateFinalAmwayMessageID(submissionID, messageID string) error {
+	db, err := sql.Open("sqlite3", "./data/amway.db")
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	stmt, err := db.Prepare("UPDATE recommendations SET final_amway_message_id = ? WHERE id = ?")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	_, err = stmt.Exec(messageID, submissionID)
+	return err
 }
