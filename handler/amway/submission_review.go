@@ -62,7 +62,7 @@ func ApproveSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCrea
 			},
 			{
 				Name:   "帖子链接",
-				Value:  fmt.Sprintf("[点击跳转](%s)", submission.URL),
+				Value:  fmt.Sprintf("[%s](%s)", submission.OriginalTitle, submission.URL),
 				Inline: true,
 			},
 		}

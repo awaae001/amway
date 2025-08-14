@@ -243,9 +243,10 @@ func ContentSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCrea
 		fmt.Printf("二次验证帖子以获取元数据时出错: %v\n", err)
 	}
 
-	var originalPostTimestamp string
+	var originalPostTimestamp, originalTitle string
 	if postInfo != nil {
 		originalPostTimestamp = postInfo.Timestamp
+		originalTitle = postInfo.Title
 	}
 
 	// Extract form data
@@ -280,7 +281,7 @@ func ContentSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCrea
 	submissionID, err := utils.AddSubmissionV2(
 		i.Member.User.ID, originalURL,
 		recommendTitle, recommendContent,
-		"", originalAuthor, originalPostTimestamp, i.GuildID, i.Member.User.Username)
+		originalTitle, originalAuthor, originalPostTimestamp, i.GuildID, i.Member.User.Username)
 	if err != nil {
 		fmt.Printf("Error adding submission to database: %v\n", err)
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{

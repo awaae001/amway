@@ -6,27 +6,18 @@ import (
 	"regexp"
 
 	"github.com/bwmarrin/discordgo"
+
+	"amway/model"
 )
 
-// DiscordPostInfo 存储解析的Discord帖子信息
-type DiscordPostInfo struct {
-	GuildID   string
-	ChannelID string
-	MessageID string
-	Author    *discordgo.User
-	Content   string
-	Title     string
-	Timestamp string
-}
-
 // ParseDiscordURL 解析Discord链接（支持频道链接和消息链接）
-func ParseDiscordURL(url string) (*DiscordPostInfo, error) {
+func ParseDiscordURL(url string) (*model.DiscordPostInfo, error) {
 	// 先尝试匹配完整消息链接: https://discord.com/channels/GUILD_ID/CHANNEL_ID/MESSAGE_ID
 	reMessage := regexp.MustCompile(`https://discord(?:app)?\.com/channels/(\d+)/(\d+)/(\d+)`)
 	matches := reMessage.FindStringSubmatch(url)
 
 	if len(matches) == 4 {
-		return &DiscordPostInfo{
+		return &model.DiscordPostInfo{
 			GuildID:   matches[1],
 			ChannelID: matches[2],
 			MessageID: matches[3],
@@ -38,7 +29,7 @@ func ParseDiscordURL(url string) (*DiscordPostInfo, error) {
 	matches = reChannel.FindStringSubmatch(url)
 
 	if len(matches) == 3 {
-		return &DiscordPostInfo{
+		return &model.DiscordPostInfo{
 			GuildID:   matches[1],
 			ChannelID: matches[2],
 			MessageID: "", // 需要后续获取首楼消息ID
@@ -49,7 +40,7 @@ func ParseDiscordURL(url string) (*DiscordPostInfo, error) {
 }
 
 // FetchDiscordMessage 从Discord API获取消息详细信息
-func FetchDiscordMessage(s *discordgo.Session, info *DiscordPostInfo) error {
+func FetchDiscordMessage(s *discordgo.Session, info *model.DiscordPostInfo) error {
 	var message *discordgo.Message
 	var err error
 
@@ -87,7 +78,7 @@ func FetchDiscordMessage(s *discordgo.Session, info *DiscordPostInfo) error {
 }
 
 // ValidateDiscordPost 验证Discord帖子信息
-func ValidateDiscordPost(s *discordgo.Session, url, currentGuildID, submitterUserID string) (*DiscordPostInfo, error) {
+func ValidateDiscordPost(s *discordgo.Session, url, currentGuildID, submitterUserID string) (*model.DiscordPostInfo, error) {
 	// 解析链接
 	info, err := ParseDiscordURL(url)
 	if err != nil {
@@ -114,7 +105,7 @@ func ValidateDiscordPost(s *discordgo.Session, url, currentGuildID, submitterUse
 }
 
 // FormatDiscordPostInfo 格式化Discord帖子信息用于展示
-func FormatDiscordPostInfo(info *DiscordPostInfo) string {
+func FormatDiscordPostInfo(info *model.DiscordPostInfo) string {
 	content := info.Content
 	if len(content) > 200 {
 		content = content[:200] + "..."

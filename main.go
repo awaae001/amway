@@ -42,9 +42,11 @@ func main() {
 	}
 
 	dg.AddHandler(handler.OnInteractionCreate)
+	dg.AddHandler(amway.MessageReactionAdd)
+	dg.AddHandler(amway.MessageReactionRemove)
 
 	// 设置必要的intents
-	dg.Identify.Intents = discordgo.IntentsGuildMessages | discordgo.IntentsGuilds
+	dg.Identify.Intents = discordgo.IntentsGuildMessages | discordgo.IntentsGuilds | discordgo.IntentsGuildMessageReactions
 
 	err = dg.Open()
 	if err != nil {

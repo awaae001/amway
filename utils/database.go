@@ -255,7 +255,8 @@ func GetSubmission(submissionID string) (*model.Submission, error) {
 		COALESCE(recommend_title, '') as recommend_title,
 		COALESCE(recommend_content, '') as recommend_content,
 		COALESCE(original_post_timestamp, '') as original_post_timestamp,
-		COALESCE(final_amway_message_id, '') as final_amway_message_id
+		COALESCE(final_amway_message_id, '') as final_amway_message_id,
+		upvotes, questions, downvotes
 	FROM recommendations WHERE id = ?`, submissionID)
 
 	var sub model.Submission
@@ -263,6 +264,7 @@ func GetSubmission(submissionID string) (*model.Submission, error) {
 		&sub.ID, &sub.UserID, &sub.AuthorNickname, &sub.Content, &sub.URL, &sub.Timestamp,
 		&sub.GuildID, &sub.OriginalTitle, &sub.OriginalAuthor,
 		&sub.RecommendTitle, &sub.RecommendContent, &sub.OriginalPostTimestamp, &sub.FinalAmwayMessageID,
+		&sub.Upvotes, &sub.Questions, &sub.Downvotes,
 	)
 	if err != nil {
 		return nil, err
@@ -286,5 +288,70 @@ func UpdateFinalAmwayMessageID(submissionID, messageID string) error {
 	defer stmt.Close()
 
 	_, err = stmt.Exec(messageID, submissionID)
+	return err
+}
+
+// GetSubmissionByMessageID retrieves a submission by its final message ID.
+func GetSubmissionByMessageID(messageID string) (*model.Submission, error) {
+	db, err := sql.Open("sqlite3", "./data/amway.db")
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	row := db.QueryRow(`SELECT
+		id, author_id, COALESCE(author_nickname, '') as author_nickname, content, post_url, created_at,
+		COALESCE(guild_id, '') as guild_id,
+		COALESCE(original_title, '') as original_title,
+		COALESCE(original_author, '') as original_author,
+		COALESCE(recommend_title, '') as recommend_title,
+		COALESCE(recommend_content, '') as recommend_content,
+		COALESCE(original_post_timestamp, '') as original_post_timestamp,
+		COALESCE(final_amway_message_id, '') as final_amway_message_id,
+		upvotes, questions, downvotes
+	FROM recommendations WHERE final_amway_message_id = ?`, messageID)
+
+	var sub model.Submission
+	err = row.Scan(
+		&sub.ID, &sub.UserID, &sub.AuthorNickname, &sub.Content, &sub.URL, &sub.Timestamp,
+		&sub.GuildID, &sub.OriginalTitle, &sub.OriginalAuthor,
+		&sub.RecommendTitle, &sub.RecommendContent, &sub.OriginalPostTimestamp, &sub.FinalAmwayMessageID,
+		&sub.Upvotes, &sub.Questions, &sub.Downvotes,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &sub, nil
+}
+
+// UpdateReactionCount updates the reaction counts for a submission.
+func UpdateReactionCount(submissionID string, emojiName string, increment int) error {
+	db, err := sql.Open("sqlite3", "./data/amway.db")
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	var fieldToUpdate string
+	switch emojiName {
+	case "👍":
+		fieldToUpdate = "upvotes"
+	case "❓":
+		fieldToUpdate = "questions"
+	case "👎":
+		fieldToUpdate = "downvotes"
+	default:
+		return nil // Ignore other reactions
+	}
+
+	query := fmt.Sprintf("UPDATE recommendations SET %s = %s + ? WHERE id = ?", fieldToUpdate, fieldToUpdate)
+	stmt, err := db.Prepare(query)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	_, err = stmt.Exec(increment, submissionID)
 	return err
 }

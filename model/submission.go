@@ -15,4 +15,7 @@ type Submission struct {
 	GuildID               string
 	AuthorNickname        string
 	FinalAmwayMessageID   string
+	Upvotes               int
+	Questions             int
+	Downvotes             int
 }
