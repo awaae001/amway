@@ -12,7 +12,6 @@ import (
 
 // ParseDiscordURL 解析Discord链接（支持频道链接和消息链接）
 func ParseDiscordURL(url string) (*model.DiscordPostInfo, error) {
-	// 先尝试匹配完整消息链接: https://discord.com/channels/GUILD_ID/CHANNEL_ID/MESSAGE_ID
 	reMessage := regexp.MustCompile(`https://discord(?:app)?\.com/channels/(\d+)/(\d+)/(\d+)`)
 	matches := reMessage.FindStringSubmatch(url)
 
@@ -23,8 +22,6 @@ func ParseDiscordURL(url string) (*model.DiscordPostInfo, error) {
 			MessageID: matches[3],
 		}, nil
 	}
-
-	// 如果不是消息链接，尝试匹配频道链接: https://discord.com/channels/GUILD_ID/CHANNEL_ID
 	reChannel := regexp.MustCompile(`https://discord(?:app)?\.com/channels/(\d+)/(\d+)/?$`)
 	matches = reChannel.FindStringSubmatch(url)
 
@@ -66,8 +63,14 @@ func FetchDiscordMessage(s *discordgo.Session, info *model.DiscordPostInfo) erro
 		if err != nil {
 			return fmt.Errorf("无法获取消息: %v", err)
 		}
-		// 对于具体消息，标题为空
-		info.Title = ""
+		// 即使是具体消息，也尝试获取其所在频道的标题
+		thread, err := s.Channel(info.ChannelID)
+		if err != nil {
+			// 如果获取频道信息失败，标题将为空，但流程继续
+			info.Title = ""
+		} else {
+			info.Title = thread.Name
+		}
 	}
 
 	info.Author = message.Author

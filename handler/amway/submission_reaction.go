@@ -20,7 +20,7 @@ func MessageReactionAdd(s *discordgo.Session, r *discordgo.MessageReactionAdd) {
 		return
 	}
 
-	handleReaction(s, r.MessageReaction, 1)
+	handleReaction(r.MessageReaction, 1)
 }
 
 // MessageReactionRemove handles reaction removals.
@@ -35,10 +35,10 @@ func MessageReactionRemove(s *discordgo.Session, r *discordgo.MessageReactionRem
 		return
 	}
 
-	handleReaction(s, r.MessageReaction, -1)
+	handleReaction(r.MessageReaction, -1)
 }
 
-func handleReaction(s *discordgo.Session, r *discordgo.MessageReaction, increment int) {
+func handleReaction(r *discordgo.MessageReaction, increment int) {
 	submission, err := utils.GetSubmissionByMessageID(r.MessageID)
 	if err != nil {
 		return

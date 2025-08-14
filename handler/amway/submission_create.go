@@ -1,7 +1,7 @@
 package amway
 
 import (
-	"amway/config"
+	"amway/model"
 	"amway/utils"
 	"fmt"
 	"strings"
@@ -302,69 +302,14 @@ func ContentSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCrea
 		},
 	})
 
-	// Send review message to review channel (需要更新审核消息格式)
-	reviewChannelID := config.Cfg.AmwayBot.Amway.ReviewChannelID
-	if reviewChannelID == "" {
-		fmt.Printf("Review channel ID not configured\n")
-		return
+	// Use the new reusable function to send the review message
+	submission := &model.Submission{
+		ID:               submissionID,
+		UserID:           i.Member.User.ID,
+		URL:              originalURL,
+		RecommendTitle:   recommendTitle,
+		RecommendContent: recommendContent,
+		OriginalAuthor:   originalAuthor,
 	}
-
-	embed := &discordgo.MessageEmbed{
-		Title:       "新的安利投稿待审核",
-		Description: fmt.Sprintf("**投稿ID:** %s\n**投稿人:** <@%s>\n**安利标题:** %s\n**原帖作者:** <@%s>\n**原帖链接:** %s\n**安利内容:**\n%s", submissionID, i.Member.User.ID, recommendTitle, originalAuthor, originalURL, recommendContent),
-		Color:       0xFFFF00, // Yellow color for pending
-		Footer: &discordgo.MessageEmbedFooter{
-			Text: fmt.Sprintf("提交时间 • ID: %s", submissionID),
-		},
-	}
-
-	components := []discordgo.MessageComponent{
-		discordgo.ActionsRow{
-			Components: []discordgo.MessageComponent{
-				discordgo.Button{
-					Label:    "通过",
-					Style:    discordgo.SuccessButton,
-					CustomID: "approve_submission:" + submissionID,
-					Emoji:    &discordgo.ComponentEmoji{Name: "✅"},
-				},
-				discordgo.Button{
-					Label:    "拒绝",
-					Style:    discordgo.DangerButton,
-					CustomID: "reject_submission:" + submissionID,
-					Emoji:    &discordgo.ComponentEmoji{Name: "❌"},
-				},
-				discordgo.Button{
-					Label:    "忽略",
-					Style:    discordgo.SecondaryButton,
-					CustomID: "ignore_submission:" + submissionID,
-					Emoji:    &discordgo.ComponentEmoji{Name: "⏭️"},
-				},
-			},
-		},
-		discordgo.ActionsRow{
-			Components: []discordgo.MessageComponent{
-				discordgo.Button{
-					Label:    "封禁",
-					Style:    discordgo.DangerButton,
-					CustomID: "ban_submission:" + submissionID,
-					Emoji:    &discordgo.ComponentEmoji{Name: "🔨"},
-				},
-				discordgo.Button{
-					Label:    "删除",
-					Style:    discordgo.DangerButton,
-					CustomID: "delete_submission:" + submissionID,
-					Emoji:    &discordgo.ComponentEmoji{Name: "🗑️"},
-				},
-			},
-		},
-	}
-
-	_, err = s.ChannelMessageSendComplex(reviewChannelID, &discordgo.MessageSend{
-		Embed:      embed,
-		Components: components,
-	})
-
-	if err != nil {
-		fmt.Printf("Error sending review message: %v\n", err)
-	}
+	SendSubmissionToReviewChannel(s, submission)
 }
