@@ -10,17 +10,28 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+const (
+	dbDriver = "sqlite3"
+	dbSource = "./data/amway.db"
+)
+
+// DB is the global database connection pool.
+var DB *sql.DB
+
 // InitDB initializes the SQLite database and creates tables if they don't exist.
-// It is based on the initial user request and the provided protobuf schema for recommendations.
 func InitDB() {
-	db, err := sql.Open("sqlite3", "./data/amway.db")
+	var err error
+	DB, err = sql.Open(dbDriver, dbSource)
 	if err != nil {
 		log.Fatalf("Failed to open database: %v", err)
 	}
-	defer db.Close()
 
+	createTables()
+}
+
+// createTables creates the necessary tables in the database if they don't exist.
+func createTables() {
 	// SQL statement to create the 'recommendations' table.
-	// This schema is derived from the 'RecommendationSlip' protobuf message.
 	createRecommendationsTableSQL := `
 	CREATE TABLE IF NOT EXISTS recommendations (
 		id TEXT PRIMARY KEY,
@@ -43,7 +54,7 @@ func InitDB() {
 		final_amway_message_id TEXT
 	);`
 
-	_, err = db.Exec(createRecommendationsTableSQL)
+	_, err := DB.Exec(createRecommendationsTableSQL)
 	if err != nil {
 		log.Fatalf("Failed to create recommendations table: %v", err)
 	}
@@ -56,7 +67,7 @@ func InitDB() {
 		timestamp INTEGER NOT NULL
 	);`
 
-	_, err = db.Exec(createBannedUsersTableSQL)
+	_, err = DB.Exec(createBannedUsersTableSQL)
 	if err != nil {
 		log.Fatalf("Failed to create banned_users table: %v", err)
 	}
@@ -68,37 +79,30 @@ func InitDB() {
 		current_value INTEGER NOT NULL DEFAULT 0
 	);`
 
-	_, err = db.Exec(createIdCounterTableSQL)
+	_, err = DB.Exec(createIdCounterTableSQL)
 	if err != nil {
 		log.Fatalf("Failed to create id_counter table: %v", err)
 	}
 
 	// Initialize the submission counter if it doesn't exist
-	_, err = db.Exec("INSERT OR IGNORE INTO id_counter(counter_name, current_value) VALUES('submission_id', 0)")
+	_, err = DB.Exec("INSERT OR IGNORE INTO id_counter(counter_name, current_value) VALUES('submission_id', 0)")
 	if err != nil {
 		log.Fatalf("Failed to initialize submission counter: %v", err)
 	}
 
-	log.Println("Database and tables initialized successfully in data/amway.db")
+	log.Println("Database and tables initialized successfully in", dbSource)
 }
 
 // IsUserBanned checks if a user is in the banned_users table.
 func IsUserBanned(userID string) (bool, error) {
-	db, err := sql.Open("sqlite3", "./data/amway.db")
-	if err != nil {
-		return false, err
-	}
-	defer db.Close()
-
 	var id string
-	err = db.QueryRow("SELECT user_id FROM banned_users WHERE user_id = ?", userID).Scan(&id)
+	err := DB.QueryRow("SELECT user_id FROM banned_users WHERE user_id = ?", userID).Scan(&id)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return false, nil // User is not banned
 		}
 		return false, err // An actual error occurred
 	}
-
 	return true, nil // User is found in the banned list
 }
 
@@ -109,37 +113,26 @@ func AddSubmission(userID, url, title, content, guildID, authorNickname string) 
 
 // AddSubmissionV2 adds a new submission with original post info and recommendation content.
 func AddSubmissionV2(userID, url, recommendTitle, recommendContent, originalTitle, originalAuthor string, originalPostTimestamp string, guildID string, authorNickname string) (string, error) {
-	db, err := sql.Open("sqlite3", "./data/amway.db")
+	tx, err := DB.Begin()
 	if err != nil {
 		return "", err
 	}
-	defer db.Close()
+	defer tx.Rollback() // Rollback on error
 
-	// Start a transaction to ensure atomic ID generation
-	tx, err := db.Begin()
-	if err != nil {
-		return "", err
-	}
-	defer tx.Rollback()
-
-	// Get and increment the counter
 	var currentID int
 	err = tx.QueryRow("SELECT current_value FROM id_counter WHERE counter_name = 'submission_id'").Scan(&currentID)
 	if err != nil {
 		return "", err
 	}
 
-	// Increment the counter
 	newID := currentID + 1
 	_, err = tx.Exec("UPDATE id_counter SET current_value = ? WHERE counter_name = 'submission_id'", newID)
 	if err != nil {
 		return "", err
 	}
 
-	// Generate submission ID as string
 	submissionID := fmt.Sprintf("%d", newID)
 
-	// Insert the new submission with all fields
 	stmt, err := tx.Prepare(`INSERT INTO recommendations(
 		id, author_id, author_nickname, content, post_url, created_at, guild_id,
 		original_title, original_author, recommend_title, recommend_content, original_post_timestamp
@@ -149,7 +142,6 @@ func AddSubmissionV2(userID, url, recommendTitle, recommendContent, originalTitl
 	}
 	defer stmt.Close()
 
-	// For legacy compatibility, if original fields are empty, use the old format
 	fullContent := recommendContent
 	if originalTitle == "" && originalAuthor == "" {
 		fullContent = fmt.Sprintf("**%s**\n\n%s", recommendTitle, recommendContent)
@@ -163,24 +155,11 @@ func AddSubmissionV2(userID, url, recommendTitle, recommendContent, originalTitl
 		return "", err
 	}
 
-	// Commit the transaction
-	err = tx.Commit()
-	if err != nil {
-		return "", err
-	}
-
-	return submissionID, nil
+	return submissionID, tx.Commit()
 }
 
 // UpdateSubmissionStatus updates the status of a submission in recommendations table.
 func UpdateSubmissionStatus(submissionID, status string) error {
-	db, err := sql.Open("sqlite3", "./data/amway.db")
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	// We'll use is_blocked field to track status: 0=pending, 1=approved, 2=rejected, 3=ignored
 	var isBlocked int
 	switch status {
 	case "approved":
@@ -193,61 +172,48 @@ func UpdateSubmissionStatus(submissionID, status string) error {
 		isBlocked = 0
 	}
 
-	stmt, err := db.Prepare("UPDATE recommendations SET is_blocked = ? WHERE id = ?")
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
-	_, err = stmt.Exec(isBlocked, submissionID)
+	_, err := DB.Exec("UPDATE recommendations SET is_blocked = ? WHERE id = ?", isBlocked, submissionID)
 	return err
 }
 
 // DeleteSubmission removes a submission from the recommendations table.
 func DeleteSubmission(submissionID string) error {
-	db, err := sql.Open("sqlite3", "./data/amway.db")
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare("DELETE FROM recommendations WHERE id = ?")
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
-	_, err = stmt.Exec(submissionID)
+	_, err := DB.Exec("DELETE FROM recommendations WHERE id = ?", submissionID)
 	return err
 }
 
 // BanUser adds a user to the banned_users table.
 func BanUser(userID, reason string) error {
-	db, err := sql.Open("sqlite3", "./data/amway.db")
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare("INSERT OR REPLACE INTO banned_users(user_id, reason, timestamp) VALUES(?, ?, ?)")
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
-	_, err = stmt.Exec(userID, reason, time.Now().Unix())
+	_, err := DB.Exec("INSERT OR REPLACE INTO banned_users(user_id, reason, timestamp) VALUES(?, ?, ?)", userID, reason, time.Now().Unix())
 	return err
+}
+
+// rowScanner is an interface that can be satisfied by *sql.Row or *sql.Rows.
+type rowScanner interface {
+	Scan(dest ...interface{}) error
+}
+
+// scanSubmission scans a row into a Submission struct.
+func scanSubmission(scanner rowScanner) (*model.Submission, error) {
+	var sub model.Submission
+	err := scanner.Scan(
+		&sub.ID, &sub.UserID, &sub.AuthorNickname, &sub.Content, &sub.URL, &sub.Timestamp,
+		&sub.GuildID, &sub.OriginalTitle, &sub.OriginalAuthor,
+		&sub.RecommendTitle, &sub.RecommendContent, &sub.OriginalPostTimestamp, &sub.FinalAmwayMessageID,
+		&sub.Upvotes, &sub.Questions, &sub.Downvotes,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // Return nil, nil if no submission is found
+		}
+		return nil, err
+	}
+	return &sub, nil
 }
 
 // GetSubmission retrieves a submission by its ID from recommendations table.
 func GetSubmission(submissionID string) (*model.Submission, error) {
-	db, err := sql.Open("sqlite3", "./data/amway.db")
-	if err != nil {
-		return nil, err
-	}
-	defer db.Close()
-
-	row := db.QueryRow(`SELECT
+	row := DB.QueryRow(`SELECT
 		id, author_id, COALESCE(author_nickname, '') as author_nickname, content, post_url, created_at,
 		COALESCE(guild_id, '') as guild_id,
 		COALESCE(original_title, '') as original_title,
@@ -259,47 +225,18 @@ func GetSubmission(submissionID string) (*model.Submission, error) {
 		upvotes, questions, downvotes
 	FROM recommendations WHERE id = ?`, submissionID)
 
-	var sub model.Submission
-	err = row.Scan(
-		&sub.ID, &sub.UserID, &sub.AuthorNickname, &sub.Content, &sub.URL, &sub.Timestamp,
-		&sub.GuildID, &sub.OriginalTitle, &sub.OriginalAuthor,
-		&sub.RecommendTitle, &sub.RecommendContent, &sub.OriginalPostTimestamp, &sub.FinalAmwayMessageID,
-		&sub.Upvotes, &sub.Questions, &sub.Downvotes,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return &sub, nil
+	return scanSubmission(row)
 }
 
 // UpdateFinalAmwayMessageID updates the final_amway_message_id for a submission.
 func UpdateFinalAmwayMessageID(submissionID, messageID string) error {
-	db, err := sql.Open("sqlite3", "./data/amway.db")
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare("UPDATE recommendations SET final_amway_message_id = ? WHERE id = ?")
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
-	_, err = stmt.Exec(messageID, submissionID)
+	_, err := DB.Exec("UPDATE recommendations SET final_amway_message_id = ? WHERE id = ?", messageID, submissionID)
 	return err
 }
 
 // GetSubmissionByMessageID retrieves a submission by its final message ID.
 func GetSubmissionByMessageID(messageID string) (*model.Submission, error) {
-	db, err := sql.Open("sqlite3", "./data/amway.db")
-	if err != nil {
-		return nil, err
-	}
-	defer db.Close()
-
-	row := db.QueryRow(`SELECT
+	row := DB.QueryRow(`SELECT
 		id, author_id, COALESCE(author_nickname, '') as author_nickname, content, post_url, created_at,
 		COALESCE(guild_id, '') as guild_id,
 		COALESCE(original_title, '') as original_title,
@@ -311,28 +248,11 @@ func GetSubmissionByMessageID(messageID string) (*model.Submission, error) {
 		upvotes, questions, downvotes
 	FROM recommendations WHERE final_amway_message_id = ?`, messageID)
 
-	var sub model.Submission
-	err = row.Scan(
-		&sub.ID, &sub.UserID, &sub.AuthorNickname, &sub.Content, &sub.URL, &sub.Timestamp,
-		&sub.GuildID, &sub.OriginalTitle, &sub.OriginalAuthor,
-		&sub.RecommendTitle, &sub.RecommendContent, &sub.OriginalPostTimestamp, &sub.FinalAmwayMessageID,
-		&sub.Upvotes, &sub.Questions, &sub.Downvotes,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return &sub, nil
+	return scanSubmission(row)
 }
 
 // UpdateReactionCount updates the reaction counts for a submission.
 func UpdateReactionCount(submissionID string, emojiName string, increment int) error {
-	db, err := sql.Open("sqlite3", "./data/amway.db")
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
 	var fieldToUpdate string
 	switch emojiName {
 	case "👍":
@@ -346,12 +266,6 @@ func UpdateReactionCount(submissionID string, emojiName string, increment int) e
 	}
 
 	query := fmt.Sprintf("UPDATE recommendations SET %s = %s + ? WHERE id = ?", fieldToUpdate, fieldToUpdate)
-	stmt, err := db.Prepare(query)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
-	_, err = stmt.Exec(increment, submissionID)
+	_, err := DB.Exec(query, increment, submissionID)
 	return err
 }
