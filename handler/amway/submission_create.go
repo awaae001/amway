@@ -295,10 +295,10 @@ func ContentSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCrea
 	}
 	// Send confirmation to user
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Type: discordgo.InteractionResponseUpdateMessage,
 		Data: &discordgo.InteractionResponseData{
-			Content: "您的安利投稿已成功提交，正在等待审核。",
-			Flags:   discordgo.MessageFlagsEphemeral,
+			Content:    "您的安利投稿已成功提交，正在等待审核。",
+			Components: []discordgo.MessageComponent{},
 		},
 	})
 

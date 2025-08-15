@@ -270,32 +270,49 @@ func handleResendSubmission(s *discordgo.Session, i *discordgo.InteractionCreate
 		return
 	}
 
-	// 构建发布消息（参考现有的发布格式）
-	var content string
-	if submission.OriginalTitle != "" && submission.OriginalAuthor != "" {
-		// 新格式：有原始帖子信息
-		content = fmt.Sprintf("%s\n\n> %s\n> —— %s", 
-			submission.RecommendContent, submission.OriginalTitle, submission.OriginalAuthor)
-	} else {
-		// 旧格式：使用完整内容
-		content = submission.Content
+	// 构建发布消息（与原始发布逻辑保持一致）
+	// 上半部分：纯文本内容
+	plainContent := fmt.Sprintf("-# 来自 <@%s> 的安利\n## %s\n%s",
+		submission.UserID,
+		submission.RecommendTitle,
+		submission.RecommendContent,
+	)
+
+	// 下半部分：嵌入式卡片
+	embedFields := []*discordgo.MessageEmbedField{
+		{
+			Name:   "作者",
+			Value:  fmt.Sprintf("<@%s>", submission.OriginalAuthor),
+			Inline: true,
+		},
+		{
+			Name:   "帖子链接",
+			Value:  fmt.Sprintf("[%s](%s)", submission.OriginalTitle, submission.URL),
+			Inline: true,
+		},
+	}
+
+	if submission.OriginalPostTimestamp != "" {
+		embedFields = append(embedFields, &discordgo.MessageEmbedField{
+			Name:   "发帖日期",
+			Value:  submission.OriginalPostTimestamp,
+			Inline: true,
+		})
+	}
+
+	embed := &discordgo.MessageEmbed{
+		Title:  "详情信息",
+		Color:  0x2ea043,
+		Fields: embedFields,
+		Footer: &discordgo.MessageEmbedFooter{
+			Text: fmt.Sprintf("安利提交于: %s • ID: %s", time.Unix(submission.Timestamp, 0).Format("2006-01-02 15:04:05"), submission.ID),
+		},
 	}
 
 	// 发送消息
 	message, err := s.ChannelMessageSendComplex(publishChannelID, &discordgo.MessageSend{
-		Content: content,
-		Components: []discordgo.MessageComponent{
-			discordgo.ActionsRow{
-				Components: []discordgo.MessageComponent{
-					discordgo.Button{
-						Style:    discordgo.SecondaryButton,
-						CustomID: fmt.Sprintf("reaction_button:%s", submissionID),
-						Label:    "简评反应",
-						Emoji:    &discordgo.ComponentEmoji{Name: "💭"},
-					},
-				},
-			},
-		},
+		Content: plainContent,
+		Embed:   embed,
 	})
 
 	if err != nil {
@@ -305,14 +322,8 @@ func handleResendSubmission(s *discordgo.Session, i *discordgo.InteractionCreate
 		return
 	}
 
-	// 更新消息ID
-	err = utils.UpdateFinalAmwayMessageID(submissionID, message.ID)
-	if err != nil {
-		log.Printf("Failed to update message ID for submission %s: %v", submissionID, err)
-	}
-
 	s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-		Content: utils.StringPtr(fmt.Sprintf("✅ 投稿 %s 已成功重新发送到 <#%s>。\n消息链接：https://discord.com/channels/%s/%s/%s", 
+		Content: utils.StringPtr(fmt.Sprintf("✅ 投稿 %s 已成功重新发送到 <#%s>。\n消息链接：https://discord.com/channels/%s/%s/%s",
 			submissionID, publishChannelID, submission.GuildID, publishChannelID, message.ID)),
 	})
 }

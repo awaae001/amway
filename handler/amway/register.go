@@ -1,17 +1,17 @@
 package amway
 
 import (
-	"amway/command"
+	"amway/command/def"
 	"amway/handler"
 )
 
 // RegisterHandlers registers all handlers for the amway package.
 func RegisterHandlers() {
-	handler.AddCommandHandler(command.CreatePanelCommand.Name, createPanelCommandHandler)
+	handler.AddCommandHandler(def.CreatePanelCommand.Name, createPanelCommandHandler)
 	handler.AddComponentHandler("create_submission_button", CreateSubmissionButtonHandler)
 
 	// 管理员命令处理器
-	handler.AddCommandHandler(command.AmwayAdminCommand.Name, AmwayAdminCommandHandler)
+	handler.AddCommandHandler(def.AmwayAdminCommand.Name, AmwayAdminCommandHandler)
 
 	// 新的两步投稿流程
 	handler.AddModalHandler("submission_link_modal", LinkSubmissionHandler)

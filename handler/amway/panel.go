@@ -25,13 +25,11 @@ func createPanelCommandHandler(s *discordgo.Session, i *discordgo.InteractionCre
 		return
 	}
 
-	// 2. 将所有后续处理移入一个新的 goroutine 中。
-	// 这可以防止任何阻塞操作（如权限检查、数据库、API 调用）影响机器人网关的响应。
 	go func() {
 		// 设置超时上下文，防止 goroutine 长时间运行
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		
+
 		defer func() {
 			if r := recover(); r != nil {
 				log.Printf("Panic in panel creation goroutine: %v", r)
@@ -40,7 +38,7 @@ func createPanelCommandHandler(s *discordgo.Session, i *discordgo.InteractionCre
 				})
 			}
 		}()
-		
+
 		// 检查超时
 		select {
 		case <-ctx.Done():
@@ -82,7 +80,7 @@ func createPanelCommandHandler(s *discordgo.Session, i *discordgo.InteractionCre
 		}
 
 		// 保存面板状态到JSON文件
-		if err := utils.SavePanelState("panel_state.json", channelID, message.ID); err != nil {
+		if err := utils.SavePanelState("data/panel_state.json", channelID, message.ID); err != nil {
 			log.Printf("Error saving panel state: %v", err)
 			s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 				Content: utils.StringPtr(fmt.Sprintf("创建面板成功，但保存状态失败：%v", err)),
@@ -99,13 +97,9 @@ func createPanelCommandHandler(s *discordgo.Session, i *discordgo.InteractionCre
 
 // MessageCreate 监听新消息并更新面板
 func MessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
-	// 忽略机器人自己的消息
-	if m.Author.ID == s.State.User.ID {
-		return
-	}
 
 	// 加载面板状态
-	panelState, err := utils.LoadPanelState("panel_state.json")
+	panelState, err := utils.LoadPanelState("data/panel_state.json")
 	if err != nil {
 		log.Printf("Error loading panel state: %v", err)
 		return
@@ -121,6 +115,14 @@ func MessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
+	// 检查消息是否为机器人自己发送的面板消息，以防止递归
+	// 通过检查 Embed 的标题来精确识别面板消息
+	if m.Author.ID == s.State.User.ID {
+		if len(m.Embeds) > 0 && m.Embeds[0].Title == "鉴赏家投稿面板" {
+			log.Printf("Ignoring bot's own panel message %s to prevent recursion.", m.ID)
+			return
+		}
+	}
 	// 删除旧的面板消息
 	if err := s.ChannelMessageDelete(panelState.ChannelID, panelState.MessageID); err != nil {
 		log.Printf("Error deleting old panel message: %v", err)
@@ -135,7 +137,7 @@ func MessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 
 	// 更新面板状态
-	if err := utils.SavePanelState("panel_state.json", panelState.ChannelID, newMessage.ID); err != nil {
+	if err := utils.SavePanelState("data/panel_state.json", panelState.ChannelID, newMessage.ID); err != nil {
 		log.Printf("Error saving new panel state: %v", err)
 	}
 

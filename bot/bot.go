@@ -42,14 +42,11 @@ func Start() {
 	}
 
 	for _, guildID := range config.Cfg.Commands.Allowguils {
-		_, err := dg.ApplicationCommandCreate(dg.State.User.ID, guildID, command.CreatePanelCommand)
-		if err != nil {
-			log.Fatalf("Cannot create panel command: %v", err)
-		}
-
-		_, err = dg.ApplicationCommandCreate(dg.State.User.ID, guildID, command.AmwayAdminCommand)
-		if err != nil {
-			log.Fatalf("Cannot create admin command: %v", err)
+		for _, cmd := range command.AllCommands {
+			_, err := dg.ApplicationCommandCreate(dg.State.User.ID, guildID, cmd)
+			if err != nil {
+				log.Fatalf("Cannot create '%v' command: %v", cmd.Name, err)
+			}
 		}
 	}
 

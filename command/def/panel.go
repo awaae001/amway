@@ -1,4 +1,4 @@
-package command
+package def
 
 import (
 	"github.com/bwmarrin/discordgo"
