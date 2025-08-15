@@ -1,10 +1,19 @@
 package model
 
+import "time"
+
 // Config 对应于 config.yaml 的顶级结构
 type Config struct {
 	Token    string   `mapstructure:"token"`
 	Commands Commands `mapstructure:"commands"`
 	AmwayBot AmwayBot `mapstructure:"amwayBot"`
+}
+
+// PanelState 面板状态
+type PanelState struct {
+	ChannelID string    `json:"channel_id"`
+	MessageID string    `json:"message_id"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // AmwayBot 对应 "amwayBot" 部分

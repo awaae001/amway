@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -51,7 +52,8 @@ func createTables() {
 		recommend_title TEXT,
 		recommend_content TEXT,
 		original_post_timestamp TEXT,
-		final_amway_message_id TEXT
+		final_amway_message_id TEXT,
+		is_deleted INTEGER NOT NULL DEFAULT 0
 	);`
 
 	_, err := DB.Exec(createRecommendationsTableSQL)
@@ -90,7 +92,18 @@ func createTables() {
 		log.Fatalf("Failed to initialize submission counter: %v", err)
 	}
 
+	// Add is_deleted column if it doesn't exist (migration for existing databases)
+	_, err = DB.Exec("ALTER TABLE recommendations ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0")
+	if err != nil && !isColumnExistsError(err) {
+		log.Fatalf("Failed to add is_deleted column: %v", err)
+	}
+
 	log.Println("Database and tables initialized successfully in", dbSource)
+}
+
+// isColumnExistsError checks if the error is due to column already existing
+func isColumnExistsError(err error) bool {
+	return strings.Contains(err.Error(), "duplicate column name")
 }
 
 // IsUserBanned checks if a user is in the banned_users table.
@@ -211,7 +224,7 @@ func scanSubmission(scanner rowScanner) (*model.Submission, error) {
 	return &sub, nil
 }
 
-// GetSubmission retrieves a submission by its ID from recommendations table.
+// GetSubmission retrieves a submission by its ID from recommendations table (excludes deleted).
 func GetSubmission(submissionID string) (*model.Submission, error) {
 	row := DB.QueryRow(`SELECT
 		id, author_id, COALESCE(author_nickname, '') as author_nickname, content, post_url, created_at,
@@ -223,7 +236,7 @@ func GetSubmission(submissionID string) (*model.Submission, error) {
 		COALESCE(original_post_timestamp, '') as original_post_timestamp,
 		COALESCE(final_amway_message_id, '') as final_amway_message_id,
 		upvotes, questions, downvotes
-	FROM recommendations WHERE id = ?`, submissionID)
+	FROM recommendations WHERE id = ? AND is_deleted = 0`, submissionID)
 
 	return scanSubmission(row)
 }
@@ -234,7 +247,7 @@ func UpdateFinalAmwayMessageID(submissionID, messageID string) error {
 	return err
 }
 
-// GetSubmissionByMessageID retrieves a submission by its final message ID.
+// GetSubmissionByMessageID retrieves a submission by its final message ID (excludes deleted).
 func GetSubmissionByMessageID(messageID string) (*model.Submission, error) {
 	row := DB.QueryRow(`SELECT
 		id, author_id, COALESCE(author_nickname, '') as author_nickname, content, post_url, created_at,
@@ -246,7 +259,7 @@ func GetSubmissionByMessageID(messageID string) (*model.Submission, error) {
 		COALESCE(original_post_timestamp, '') as original_post_timestamp,
 		COALESCE(final_amway_message_id, '') as final_amway_message_id,
 		upvotes, questions, downvotes
-	FROM recommendations WHERE final_amway_message_id = ?`, messageID)
+	FROM recommendations WHERE final_amway_message_id = ? AND is_deleted = 0`, messageID)
 
 	return scanSubmission(row)
 }
@@ -268,4 +281,40 @@ func UpdateReactionCount(submissionID string, emojiName string, increment int) e
 	query := fmt.Sprintf("UPDATE recommendations SET %s = %s + ? WHERE id = ?", fieldToUpdate, fieldToUpdate)
 	_, err := DB.Exec(query, increment, submissionID)
 	return err
+}
+
+// MarkSubmissionDeleted marks a submission as deleted (soft delete).
+func MarkSubmissionDeleted(submissionID string) error {
+	_, err := DB.Exec("UPDATE recommendations SET is_deleted = 1 WHERE id = ?", submissionID)
+	return err
+}
+
+// GetSubmissionWithDeleted retrieves a submission by its ID, including deleted ones.
+func GetSubmissionWithDeleted(submissionID string) (*model.Submission, error) {
+	row := DB.QueryRow(`SELECT
+		id, author_id, COALESCE(author_nickname, '') as author_nickname, content, post_url, created_at,
+		COALESCE(guild_id, '') as guild_id,
+		COALESCE(original_title, '') as original_title,
+		COALESCE(original_author, '') as original_author,
+		COALESCE(recommend_title, '') as recommend_title,
+		COALESCE(recommend_content, '') as recommend_content,
+		COALESCE(original_post_timestamp, '') as original_post_timestamp,
+		COALESCE(final_amway_message_id, '') as final_amway_message_id,
+		upvotes, questions, downvotes
+	FROM recommendations WHERE id = ?`, submissionID)
+
+	return scanSubmission(row)
+}
+
+// IsSubmissionDeleted checks if a submission is marked as deleted.
+func IsSubmissionDeleted(submissionID string) (bool, error) {
+	var isDeleted int
+	err := DB.QueryRow("SELECT is_deleted FROM recommendations WHERE id = ?", submissionID).Scan(&isDeleted)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return false, fmt.Errorf("submission not found")
+		}
+		return false, err
+	}
+	return isDeleted == 1, nil
 }

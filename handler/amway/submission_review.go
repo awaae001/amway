@@ -11,6 +11,28 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
+// CreatePanelMessage 创建标准的投稿面板消息
+func CreatePanelMessage() *discordgo.MessageSend {
+	embed := &discordgo.MessageEmbed{
+		Title:       "鉴赏家投稿面板",
+		Description: "点击下方按钮开始投稿您的简评",
+		Color:       0x5865F2, // Discord Blurple
+	}
+	button := discordgo.Button{
+		Label:    "点击投稿",
+		Style:    discordgo.PrimaryButton,
+		CustomID: "create_submission_button",
+		Emoji:    &discordgo.ComponentEmoji{Name: "📝"},
+	}
+
+	return &discordgo.MessageSend{
+		Embeds: []*discordgo.MessageEmbed{embed},
+		Components: []discordgo.MessageComponent{
+			discordgo.ActionsRow{Components: []discordgo.MessageComponent{button}},
+		},
+	}
+}
+
 // approveSubmissionHandler handles approval of submissions
 func ApproveSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	submissionID := strings.Split(i.MessageComponentData().CustomID, ":")[1]
