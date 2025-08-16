@@ -117,10 +117,10 @@ func (c *GRPCClient) startHealthCheck() {
 		select {
 		case <-ticker.C:
 			if !c.checkConnectionHealth() {
-				log.Printf("❌ 连接健康检查失败，触发重连")
+				log.Printf("连接健康检查失败，触发重连")
 				c.triggerReconnect()
 			} else {
-				log.Printf("连接健康检查通过")
+				// log.Printf("连接健康检查通过")
 			}
 		case <-c.ctx.Done():
 			log.Printf("健康检查已停止")

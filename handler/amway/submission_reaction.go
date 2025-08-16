@@ -44,6 +44,11 @@ func handleReaction(r *discordgo.MessageReaction, increment int) {
 		return
 	}
 
+	if submission == nil {
+		return
+		fmt.Println("Error: Submission not found")
+	}
+
 	err = utils.UpdateReactionCount(submission.ID, r.Emoji.Name, increment)
 	if err != nil {
 		fmt.Printf("Error updating reaction count for submission %s: %v\n", submission.ID, err)

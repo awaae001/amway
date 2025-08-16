@@ -14,8 +14,8 @@ import (
 // CreatePanelMessage 创建标准的投稿面板消息
 func CreatePanelMessage() *discordgo.MessageSend {
 	embed := &discordgo.MessageEmbed{
-		Title:       "鉴赏家投稿面板",
-		Description: "点击下方按钮开始投稿您的简评",
+		Title:       "鉴赏小纸条投稿面板",
+		Description: "点击下方按钮开始投稿您的简评\n你的投稿通过后将会被发送到此频道以及对应帖子下方\n目前不允许自我安利",
 		Color:       0x5865F2, // Discord Blurple
 	}
 	button := discordgo.Button{

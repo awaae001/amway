@@ -118,7 +118,7 @@ func MessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	// 检查消息是否为机器人自己发送的面板消息，以防止递归
 	// 通过检查 Embed 的标题来精确识别面板消息
 	if m.Author.ID == s.State.User.ID {
-		if len(m.Embeds) > 0 && m.Embeds[0].Title == "鉴赏家投稿面板" {
+		if len(m.Embeds) > 0 && m.Embeds[0].Title == "鉴赏小纸条投稿面板" {
 			log.Printf("Ignoring bot's own panel message %s to prevent recursion.", m.ID)
 			return
 		}
