@@ -318,3 +318,41 @@ func IsSubmissionDeleted(submissionID string) (bool, error) {
 	}
 	return isDeleted == 1, nil
 }
+
+// GetSubmissionsByAuthor retrieves all submissions by a specific author in a guild (excludes deleted).
+func GetSubmissionsByAuthor(authorID string, guildID string) ([]*model.Submission, error) {
+	query := `SELECT
+		id, author_id, COALESCE(author_nickname, '') as author_nickname, content, post_url, created_at,
+		COALESCE(guild_id, '') as guild_id,
+		COALESCE(original_title, '') as original_title,
+		COALESCE(original_author, '') as original_author,
+		COALESCE(recommend_title, '') as recommend_title,
+		COALESCE(recommend_content, '') as recommend_content,
+		COALESCE(original_post_timestamp, '') as original_post_timestamp,
+		COALESCE(final_amway_message_id, '') as final_amway_message_id,
+		upvotes, questions, downvotes
+	FROM recommendations WHERE author_id = ? AND guild_id = ? AND is_deleted = 0 ORDER BY created_at DESC`
+
+	rows, err := DB.Query(query, authorID, guildID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var submissions []*model.Submission
+	for rows.Next() {
+		submission, err := scanSubmission(rows)
+		if err != nil {
+			return nil, err
+		}
+		if submission != nil {
+			submissions = append(submissions, submission)
+		}
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return submissions, nil
+}

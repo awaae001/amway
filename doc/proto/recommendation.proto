@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package recommendation;
 
+option go_package = "amway/grpc/gen/recommendation";
+
 // Service Definition
 service RecommendationService {
   // 根据 ID 获取一个安利小纸条
