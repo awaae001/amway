@@ -127,3 +127,15 @@ func FormatDiscordPostInfo(info *model.DiscordPostInfo) string {
 		content,
 	)
 }
+
+// GetOriginalPostDetails 从 submission URL 中解析出 ChannelID 和 MessageID
+func GetOriginalPostDetails(url string) (string, string, error) {
+	info, err := ParseDiscordURL(url)
+	if err != nil {
+		return "", "", fmt.Errorf("无法解析Discord链接: %w", err)
+	}
+	if info.ChannelID == "" || info.MessageID == "" {
+		return "", "", errors.New("链接中缺少 ChannelID 或 MessageID")
+	}
+	return info.ChannelID, info.MessageID, nil
+}

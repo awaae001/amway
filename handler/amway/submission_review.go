@@ -124,6 +124,54 @@ func ApproveSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCrea
 			if err != nil {
 				fmt.Printf("Error updating final amway message ID: %v\n", err)
 			}
+
+			// Send a notification to the original post
+			originalChannelID, originalMessageID, err := utils.GetOriginalPostDetails(submission.URL)
+			if err != nil {
+				fmt.Printf("Error getting original post details: %v\n", err)
+			} else {
+				amwayMessageURL := fmt.Sprintf("https://discord.com/channels/%s/%s/%s", submission.GuildID, publishChannelID, publishMsg.ID)
+
+				notificationContent := fmt.Sprintf("-# 来自 <@%s> 的推荐，TA 觉得你的帖子很棒！\n## %s\n%s",
+					submission.UserID,
+					submission.RecommendTitle,
+					submission.RecommendContent,
+				)
+
+				notificationEmbed := &discordgo.MessageEmbed{
+					Title: "安利详情",
+					Color: 0x2ea043,
+					Fields: []*discordgo.MessageEmbedField{
+						{
+							Name:   "安利人",
+							Value:  fmt.Sprintf("<@%s>", submission.UserID),
+							Inline: true,
+						},
+						{
+							Name:   "时间",
+							Value:  time.Unix(submission.Timestamp, 0).Format("2006-01-02 15:04:05"),
+							Inline: true,
+						},
+						{
+							Name:  "安利消息链接",
+							Value: fmt.Sprintf("[点击查看](%s)", amwayMessageURL),
+						},
+					},
+				}
+
+				_, err := s.ChannelMessageSendComplex(originalChannelID, &discordgo.MessageSend{
+					Content: notificationContent,
+					Embed:   notificationEmbed,
+					Reference: &discordgo.MessageReference{
+						MessageID: originalMessageID,
+						ChannelID: originalChannelID,
+						GuildID:   submission.GuildID,
+					},
+				})
+				if err != nil {
+					fmt.Printf("Error sending notification to original post: %v\n", err)
+				}
+			}
 		}
 	}
 
