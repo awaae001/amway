@@ -13,6 +13,9 @@ import (
 )
 
 func (c *GRPCClient) handleConnectionMessages(stream registryPb.RegistryService_EstablishConnectionClient) {
+	heartbeatTicker := time.NewTicker(25 * time.Second)
+	defer heartbeatTicker.Stop()
+
 	defer func() {
 		log.Printf("连接消息处理循环结束")
 		// 如果消息处理循环结束，说明连接可能断开，触发重连
@@ -26,6 +29,22 @@ func (c *GRPCClient) handleConnectionMessages(stream registryPb.RegistryService_
 		case <-c.ctx.Done():
 			log.Printf("连接消息处理已取消")
 			return
+		case <-heartbeatTicker.C:
+			// 发送心跳
+			heartbeatMsg := &registryPb.ConnectionMessage{
+				MessageType: &registryPb.ConnectionMessage_Heartbeat{
+					Heartbeat: &registryPb.Heartbeat{
+						Timestamp:    time.Now().Unix(),
+						ConnectionId: c.clientName,
+					},
+				},
+			}
+			if err := stream.Send(heartbeatMsg); err != nil {
+				log.Printf("发送心跳失败: %v", err)
+				// 发送失败可能意味着连接已断开，可以考虑触发重连
+			} else {
+				log.Printf("发送心跳包 -> %s", c.clientName)
+			}
 		default:
 			msg, err := stream.Recv()
 			if err != nil {

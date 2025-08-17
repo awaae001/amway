@@ -28,6 +28,10 @@ func (c *GRPCClient) IsConnected() bool {
 }
 
 func (c *GRPCClient) Connect() error {
+	// 启动健康检查和重连监控
+	go c.startHealthCheck()
+	go c.startReconnectMonitor()
+
 	return c.connectWithRetry()
 }
 
@@ -41,10 +45,6 @@ func (c *GRPCClient) connectWithRetry() error {
 		if err == nil {
 			c.setConnectionState(Connected)
 			log.Printf("成功连接到 gRPC 服务器")
-
-			// 启动健康检查和重连监控
-			go c.startHealthCheck()
-			go c.startReconnectMonitor()
 
 			return nil
 		}
