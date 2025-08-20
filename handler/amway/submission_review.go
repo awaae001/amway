@@ -5,6 +5,7 @@ import (
 	"amway/model"
 	"amway/utils"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -15,7 +16,7 @@ import (
 func CreatePanelMessage() *discordgo.MessageSend {
 	embed := &discordgo.MessageEmbed{
 		Title:       "鉴赏小纸条投稿面板",
-		Description: "点击下方按钮开始投稿您的简评\n你的投稿通过后将会被发送到此频道以及对应帖子下方\n目前不允许自我安利",
+		Description: "点击下方按钮开始投稿您的简评\n你的投稿通过后将会被发送到此频道以及对应帖子下方\n您没有必要在标题添加 `#` ，机器人会自动处理大字加粗",
 		Color:       0x5865F2, // Discord Blurple
 	}
 	button := discordgo.Button{
@@ -33,162 +34,184 @@ func CreatePanelMessage() *discordgo.MessageSend {
 	}
 }
 
+// stringPtr is a helper function to get a pointer to a string.
+func stringPtr(s string) *string {
+	return &s
+}
+
 // approveSubmissionHandler handles approval of submissions
 func ApproveSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	// Immediately acknowledge the interaction to avoid timeout
+	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredMessageUpdate,
+	})
+	if err != nil {
+		fmt.Printf("Error sending deferred response: %v\n", err)
+		return
+	}
+
 	submissionID := strings.Split(i.MessageComponentData().CustomID, ":")[1]
 
-	// Get submission details
-	submission, err := utils.GetSubmission(submissionID)
-	if err != nil {
-		fmt.Printf("Error getting submission: %v\n", err)
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "无法找到该投稿。",
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
-		return
-	}
-
-	// Update submission status
-	err = utils.UpdateSubmissionStatus(submissionID, "approved")
-	if err != nil {
-		fmt.Printf("Error updating submission status: %v\n", err)
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "更新状态失败。",
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
-		return
-	}
-
-	// Send to publish channel with new format
-	publishChannelID := config.Cfg.AmwayBot.Amway.PublishChannelID
-	if publishChannelID != "" {
-		// 构建新的发布格式
-		// 上半部分：纯文本内容
-		plainContent := fmt.Sprintf("-# 来自 <@%s> 的安利\n## %s\n%s",
-			submission.UserID,
-			submission.RecommendTitle,
-			submission.RecommendContent,
-		)
-
-		// 下半部分：嵌入式卡片
-		embedFields := []*discordgo.MessageEmbedField{
-			{
-				Name:   "作者",
-				Value:  fmt.Sprintf("<@%s>", submission.OriginalAuthor),
-				Inline: true,
-			},
-			{
-				Name:   "帖子链接",
-				Value:  fmt.Sprintf("[%s](%s)", submission.OriginalTitle, submission.URL),
-				Inline: true,
-			},
-		}
-
-		if submission.OriginalPostTimestamp != "" {
-			embedFields = append(embedFields, &discordgo.MessageEmbedField{
-				Name:   "发帖日期",
-				Value:  submission.OriginalPostTimestamp,
-				Inline: true,
-			})
-		}
-
-		embed := &discordgo.MessageEmbed{
-			Title:  "详情信息",
-			Color:  0x2ea043, // 与Discord深色主题背景色一致
-			Fields: embedFields,
-			Footer: &discordgo.MessageEmbedFooter{
-				Text: fmt.Sprintf("安利提交于: %s • ID: %s", time.Unix(submission.Timestamp, 0).Format("2006-01-02 15:04:05"), submission.ID),
-			},
-		}
-
-		publishMsg, err := s.ChannelMessageSendComplex(publishChannelID, &discordgo.MessageSend{
-			Content: plainContent,
-			Embed:   embed,
-		})
+	go func() {
+		// Get submission details
+		submission, err := utils.GetSubmission(submissionID)
 		if err != nil {
-			fmt.Printf("Error sending to publish channel: %v\n", err)
-		} else {
-			// Add reactions
+			fmt.Printf("Error getting submission: %v\n", err)
+			s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+				Content: stringPtr("无法找到该投稿。"),
+			})
+			return
+		}
+
+		// Update submission status
+		err = utils.UpdateSubmissionStatus(submissionID, "approved")
+		if err != nil {
+			fmt.Printf("Error updating submission status: %v\n", err)
+			s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+				Content: stringPtr("更新状态失败。"),
+			})
+			return
+		}
+
+		// Send to publish channel with new format
+		publishChannelID := config.Cfg.AmwayBot.Amway.PublishChannelID
+		if publishChannelID != "" {
+			// 构建新的发布格式
+			// 上半部分：纯文本内容
+			var authorDisplay string
+			if submission.IsAnonymous {
+				authorDisplay = "一位热心的安利员"
+			} else {
+				authorDisplay = fmt.Sprintf("<@%s>", submission.UserID)
+			}
+			plainContent := fmt.Sprintf("-# 来自 %s 的安利\n## %s\n%s",
+				authorDisplay,
+				submission.RecommendTitle,
+				submission.RecommendContent,
+			)
+
+			// 下半部分：嵌入式卡片
+			embedFields := []*discordgo.MessageEmbedField{
+				{
+					Name:   "作者",
+					Value:  fmt.Sprintf("<@%s>", submission.OriginalAuthor),
+					Inline: true,
+				},
+				{
+					Name:   "帖子链接",
+					Value:  fmt.Sprintf("[%s](%s)", submission.OriginalTitle, submission.URL),
+					Inline: true,
+				},
+			}
+
+			if submission.OriginalPostTimestamp != "" {
+				embedFields = append(embedFields, &discordgo.MessageEmbedField{
+					Name:   "发帖日期",
+					Value:  submission.OriginalPostTimestamp,
+					Inline: true,
+				})
+			}
+
+			embed := &discordgo.MessageEmbed{
+				Title:  "详情信息",
+				Color:  0x2ea043, // 与Discord深色主题背景色一致
+				Fields: embedFields,
+				Footer: &discordgo.MessageEmbedFooter{
+					Text: fmt.Sprintf("安利提交于: %s • ID: %s", time.Unix(submission.Timestamp, 0).Format("2006-01-02 15:04:05"), submission.ID),
+				},
+			}
+
+			publishMsg, err := s.ChannelMessageSendComplex(publishChannelID, &discordgo.MessageSend{
+				Content: plainContent,
+				Embed:   embed,
+			})
+
 			s.MessageReactionAdd(publishChannelID, publishMsg.ID, "👍")
 			s.MessageReactionAdd(publishChannelID, publishMsg.ID, "❓")
 			s.MessageReactionAdd(publishChannelID, publishMsg.ID, "👎")
 
-			// Update submission with the final message ID
-			err := utils.UpdateFinalAmwayMessageID(submissionID, publishMsg.ID)
 			if err != nil {
-				fmt.Printf("Error updating final amway message ID: %v\n", err)
-			}
-
-			// Send a notification to the original post
-			originalChannelID, originalMessageID, err := utils.GetOriginalPostDetails(submission.URL)
-			if err != nil {
-				fmt.Printf("Error getting original post details: %v\n", err)
+				fmt.Printf("Error sending to publish channel: %v\n", err)
 			} else {
-				amwayMessageURL := fmt.Sprintf("https://discord.com/channels/%s/%s/%s", submission.GuildID, publishChannelID, publishMsg.ID)
 
-				notificationContent := fmt.Sprintf("-# 来自 <@%s> 的推荐，TA 觉得你的帖子很棒！\n## %s\n%s",
-					submission.UserID,
-					submission.RecommendTitle,
-					submission.RecommendContent,
-				)
-
-				notificationEmbed := &discordgo.MessageEmbed{
-					Title: "安利详情",
-					Color: 0x2ea043,
-					Fields: []*discordgo.MessageEmbedField{
-						{
-							Name:   "安利人",
-							Value:  fmt.Sprintf("<@%s>", submission.UserID),
-							Inline: true,
-						},
-						{
-							Name:   "时间",
-							Value:  time.Unix(submission.Timestamp, 0).Format("2006-01-02 15:04:05"),
-							Inline: true,
-						},
-						{
-							Name:  "安利消息链接",
-							Value: fmt.Sprintf("[点击查看](%s)", amwayMessageURL),
-						},
-					},
+				// Update submission with the final message ID
+				err := utils.UpdateFinalAmwayMessageID(submissionID, publishMsg.ID)
+				if err != nil {
+					fmt.Printf("Error updating final amway message ID: %v\n", err)
 				}
 
-				_, err := s.ChannelMessageSendComplex(originalChannelID, &discordgo.MessageSend{
-					Content: notificationContent,
-					Embed:   notificationEmbed,
-					Reference: &discordgo.MessageReference{
-						MessageID: originalMessageID,
-						ChannelID: originalChannelID,
-						GuildID:   submission.GuildID,
-					},
-				})
+				// Send a notification to the original post
+				originalChannelID, originalMessageID, err := utils.GetOriginalPostDetails(submission.URL)
 				if err != nil {
-					fmt.Printf("Error sending notification to original post: %v\n", err)
+					fmt.Printf("Error getting original post details: %v\n", err)
+				} else {
+					amwayMessageURL := fmt.Sprintf("https://discord.com/channels/%s/%s/%s", submission.GuildID, publishChannelID, publishMsg.ID)
+
+					var authorDisplay string
+					if submission.IsAnonymous {
+						authorDisplay = "一位热心的安利员"
+					} else {
+						authorDisplay = fmt.Sprintf("<@%s>", submission.UserID)
+					}
+					notificationContent := fmt.Sprintf("-# 来自 %s 的推荐，TA 觉得你的帖子很棒！\n## %s\n%s",
+						authorDisplay,
+						submission.RecommendTitle,
+						submission.RecommendContent,
+					)
+
+					notificationEmbed := &discordgo.MessageEmbed{
+						Title: "安利详情",
+						Color: 0x2ea043,
+						Fields: []*discordgo.MessageEmbedField{
+							{
+								Name:   "安利人",
+								Value:  authorDisplay,
+								Inline: true,
+							},
+							{
+								Name:   "时间",
+								Value:  time.Unix(submission.Timestamp, 0).Format("2006-01-02 15:04:05"),
+								Inline: true,
+							},
+							{
+								Name:  "安利消息链接",
+								Value: fmt.Sprintf("[点击查看](%s)", amwayMessageURL),
+							},
+						},
+					}
+
+					_, err := s.ChannelMessageSendComplex(originalChannelID, &discordgo.MessageSend{
+						Content: notificationContent,
+						Embed:   notificationEmbed,
+						Reference: &discordgo.MessageReference{
+							MessageID: originalMessageID,
+							ChannelID: originalChannelID,
+							GuildID:   submission.GuildID,
+						},
+					})
+					if err != nil {
+						if restErr, ok := err.(*discordgo.RESTError); ok && restErr.Message != nil && restErr.Message.Code == 30033 {
+							log.Printf("Skipping notification for submission %s: thread participants limit reached.", submission.ID)
+						} else {
+							log.Printf("Error sending notification to original post for submission %s: %v", submission.ID, err)
+						}
+					}
 				}
 			}
 		}
-	}
 
-	// Update the review message
-	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseUpdateMessage,
-		Data: &discordgo.InteractionResponseData{
-			Embeds: []*discordgo.MessageEmbed{
+		// Update the review message
+		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+			Embeds: &[]*discordgo.MessageEmbed{
 				{
 					Title:       "投稿已通过",
 					Description: fmt.Sprintf("**投稿ID:** %s\n**审核员:** <@%s>\n**状态:** ✅ 已通过并发布", submissionID, i.Member.User.ID),
 					Color:       0x00FF00,
 				},
 			},
-			Components: []discordgo.MessageComponent{}, // Remove buttons
-		},
-	})
+			Components: &[]discordgo.MessageComponent{}, // Remove buttons
+		})
+	}()
 }
 
 // rejectSubmissionHandler handles rejection of submissions
@@ -344,7 +367,7 @@ func DeleteSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreat
 func SendSubmissionToReviewChannel(s *discordgo.Session, submission *model.Submission) {
 	reviewChannelID := config.Cfg.AmwayBot.Amway.ReviewChannelID
 	if reviewChannelID == "" {
-		fmt.Println("Review channel ID not configured")
+		log.Printf("Review channel ID not configured")
 		return
 	}
 
@@ -362,8 +385,12 @@ func SendSubmissionToReviewChannel(s *discordgo.Session, submission *model.Submi
 		}
 	} else {
 		// New (V2) submission format
+		title := "新的安利投稿待审核"
+		if submission.IsAnonymous {
+			title += " (匿名)"
+		}
 		embed = &discordgo.MessageEmbed{
-			Title:       "新的安利投稿待审核",
+			Title:       title,
 			Description: fmt.Sprintf("**投稿ID:** %s\n**投稿人:** <@%s>\n**安利标题:** %s\n**原帖作者:** <@%s>\n**原帖链接:** %s\n**安利内容:**\n%s", submission.ID, submission.UserID, submission.RecommendTitle, submission.OriginalAuthor, submission.URL, submission.RecommendContent),
 			Color:       0xFFFF00, // Yellow for pending
 			Footer: &discordgo.MessageEmbedFooter{

@@ -13,12 +13,26 @@ import (
 )
 
 func (c *GRPCClient) handleConnectionMessages(stream registryPb.RegistryService_EstablishConnectionClient) {
+	msgChan := make(chan *registryPb.ConnectionMessage)
+	errChan := make(chan error, 1)
+
+	// 启动一个 goroutine 专门用于接收消息
+	go func() {
+		for {
+			msg, err := stream.Recv()
+			if err != nil {
+				errChan <- err
+				return
+			}
+			msgChan <- msg
+		}
+	}()
+
 	heartbeatTicker := time.NewTicker(25 * time.Second)
 	defer heartbeatTicker.Stop()
 
 	defer func() {
 		log.Printf("连接消息处理循环结束")
-		// 如果消息处理循环结束，说明连接可能断开，触发重连
 		if c.getConnectionState() == Connected {
 			c.triggerReconnect()
 		}
@@ -28,6 +42,11 @@ func (c *GRPCClient) handleConnectionMessages(stream registryPb.RegistryService_
 		select {
 		case <-c.ctx.Done():
 			log.Printf("连接消息处理已取消")
+			return
+		case msg := <-msgChan:
+			c.processMessage(msg)
+		case err := <-errChan:
+			log.Printf("接收消息失败: %v", err)
 			return
 		case <-heartbeatTicker.C:
 			// 发送心跳
@@ -41,18 +60,9 @@ func (c *GRPCClient) handleConnectionMessages(stream registryPb.RegistryService_
 			}
 			if err := stream.Send(heartbeatMsg); err != nil {
 				log.Printf("发送心跳失败: %v", err)
-				// 发送失败可能意味着连接已断开，可以考虑触发重连
 			} else {
-				log.Printf("发送心跳包 -> %s", c.clientName)
+				// log.Printf("发送心跳包 -> %s", c.clientName)
 			}
-		default:
-			msg, err := stream.Recv()
-			if err != nil {
-				log.Printf("接收消息失败: %v", err)
-				return
-			}
-
-			c.processMessage(msg)
 		}
 	}
 }

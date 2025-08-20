@@ -10,11 +10,9 @@ import (
 )
 
 func CreateSubmissionButtonHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	// 检查用户是否被封禁
 	banned, err := utils.IsUserBanned(i.Member.User.ID)
 	if err != nil {
 		fmt.Printf("Error checking if user is banned: %v\n", err)
-		// 即使检查出错，也向用户显示一个通用错误，避免泄露内部问题
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
@@ -29,14 +27,13 @@ func CreateSubmissionButtonHandler(s *discordgo.Session, i *discordgo.Interactio
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: "您已被禁止投稿。",
+				Content: "您已被禁止投稿",
 				Flags:   discordgo.MessageFlagsEphemeral,
 			},
 		})
 		return
 	}
 
-	// 如果用户未被封禁，弹出链接验证模态框
 	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseModal,
 		Data: &discordgo.InteractionResponseData{
@@ -63,11 +60,8 @@ func CreateSubmissionButtonHandler(s *discordgo.Session, i *discordgo.Interactio
 	}
 }
 
-// linkSubmissionHandler handles the link validation modal submission
 func LinkSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	data := i.ModalSubmitData()
-
-	// Extract URL from form
 	var url string
 	for _, component := range data.Components {
 		if actionRow, ok := component.(*discordgo.ActionsRow); ok {
@@ -93,7 +87,6 @@ func LinkSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate)
 		return
 	}
 
-	// 验证Discord帖子链接
 	currentGuildID := i.GuildID
 	postInfo, err := utils.ValidateDiscordPost(s, url, currentGuildID, i.Member.User.ID)
 	if err != nil {
@@ -107,9 +100,7 @@ func LinkSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate)
 		return
 	}
 
-	// 显示帖子信息并要求确认
 	postInfoText := utils.FormatDiscordPostInfo(postInfo)
-
 	embed := &discordgo.MessageEmbed{
 		Title:       "帖子信息确认",
 		Description: fmt.Sprintf("%s\n\n请确认以上信息无误，然后点击下方按钮继续填写安利内容。", postInfoText),
@@ -145,7 +136,6 @@ func LinkSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate)
 	})
 }
 
-// confirmPostHandler handles the post confirmation button click
 func ConfirmPostHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	customID := i.MessageComponentData().CustomID
 	parts := strings.Split(customID, ":")
@@ -160,7 +150,6 @@ func ConfirmPostHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		return
 	}
 
-	// 弹出第二步内容填写模态框
 	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseModal,
 		Data: &discordgo.InteractionResponseData{
@@ -186,6 +175,8 @@ func ConfirmPostHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 							Style:       discordgo.TextInputParagraph,
 							Placeholder: "请输入您的安利内容和推荐理由",
 							Required:    true,
+							MinLength:   20,
+							MaxLength:   1024,
 						},
 					},
 				},
@@ -198,7 +189,6 @@ func ConfirmPostHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	}
 }
 
-// cancelSubmissionHandler handles the cancel button click
 func CancelSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseUpdateMessage,
@@ -210,46 +200,30 @@ func CancelSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreat
 	})
 }
 
-// contentSubmissionHandler handles the final content submission
 func ContentSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	data := i.ModalSubmitData()
-
-	// Extract post info from custom ID
-	customID := data.CustomID
-	parts := strings.Split(customID, ":")
-	if len(parts) < 4 {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "数据格式错误，请重新开始投稿流程。",
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
+	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{Flags: discordgo.MessageFlagsEphemeral},
+	})
+	if err != nil {
+		fmt.Printf("Error sending deferred response: %v\n", err)
 		return
 	}
 
-	guildID := i.GuildID // 从交互中获取当前服务器ID
+	data := i.ModalSubmitData()
+	customID := data.CustomID
+	parts := strings.Split(customID, ":")
+
+	if len(parts) < 4 {
+		errMsg := "数据格式错误，请重新开始投稿流程。"
+		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{Content: &errMsg})
+		return
+	}
+
 	channelID := parts[1]
 	messageID := parts[2]
 	originalAuthor := parts[3]
 
-	// 构造完整的原帖链接
-	originalURL := fmt.Sprintf("https://discord.com/channels/%s/%s/%s", guildID, channelID, messageID)
-
-	// 为了获取时间戳和消息数量，重新验证一次帖子
-	postInfo, err := utils.ValidateDiscordPost(s, originalURL, guildID, i.Member.User.ID)
-	if err != nil {
-		// 如果验证失败，打印错误但继续流程，只是没有时间戳和消息数量
-		fmt.Printf("二次验证帖子以获取元数据时出错: %v\n", err)
-	}
-
-	var originalPostTimestamp, originalTitle string
-	if postInfo != nil {
-		originalPostTimestamp = postInfo.Timestamp
-		originalTitle = postInfo.Title
-	}
-
-	// Extract form data
 	var recommendTitle, recommendContent string
 	for _, component := range data.Components {
 		if actionRow, ok := component.(*discordgo.ActionsRow); ok {
@@ -267,49 +241,131 @@ func ContentSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCrea
 	}
 
 	if recommendTitle == "" || recommendContent == "" {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "标题和内容都是必填的，请重新提交。",
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
+		errMsg := "标题和内容都是必填的，请重新提交。"
+		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{Content: &errMsg})
 		return
 	}
 
-	// Add submission to database using new V2 function
+	// Store data in cache
+	cacheData := model.SubmissionData{
+		ChannelID:        channelID,
+		MessageID:        messageID,
+		OriginalAuthor:   originalAuthor,
+		RecommendTitle:   strings.TrimLeft(recommendTitle, "#"),
+		RecommendContent: recommendContent,
+	}
+	cacheID := utils.AddToCache(cacheData)
+
+	embed := &discordgo.MessageEmbed{
+		Title:       "投稿预览",
+		Description: "请检查您的安利内容，确认无误后，选择下方的提交方式。",
+		Fields: []*discordgo.MessageEmbedField{
+			{Name: "安利标题", Value: recommendTitle},
+			{Name: "安利内容", Value: recommendContent},
+		},
+		Color: 0x00BFFF,
+	}
+
+	components := []discordgo.MessageComponent{
+		discordgo.ActionsRow{
+			Components: []discordgo.MessageComponent{
+				discordgo.Button{
+					Label:    "确认提交",
+					Style:    discordgo.SuccessButton,
+					CustomID: fmt.Sprintf("final_submit:%s:false", cacheID),
+					Emoji:    &discordgo.ComponentEmoji{Name: "✅"},
+				},
+				discordgo.Button{
+					Label:    "匿名提交",
+					Style:    discordgo.PrimaryButton,
+					CustomID: fmt.Sprintf("final_submit:%s:true", cacheID),
+					Emoji:    &discordgo.ComponentEmoji{Name: "👤"},
+				},
+				discordgo.Button{
+					Label:    "取消",
+					Style:    discordgo.DangerButton,
+					CustomID: "cancel_submission",
+					Emoji:    &discordgo.ComponentEmoji{Name: "❌"},
+				},
+			},
+		},
+	}
+
+	s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+		Embeds:     &[]*discordgo.MessageEmbed{embed},
+		Components: &components,
+	})
+}
+
+func FinalSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{Flags: discordgo.MessageFlagsEphemeral},
+	})
+	if err != nil {
+		fmt.Printf("Error sending deferred response in FinalSubmissionHandler: %v\n", err)
+		return
+	}
+
+	customID := i.MessageComponentData().CustomID
+	parts := strings.Split(customID, ":")
+	if len(parts) < 3 {
+		content := "处理您的请求时数据格式错误，请重新开始投稿。"
+		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{Content: &content})
+		return
+	}
+
+	cacheID := parts[1]
+	isAnonymousStr := parts[2]
+	isAnonymous := isAnonymousStr == "true"
+
+	cacheData, found := utils.GetFromCache(cacheID)
+	if !found {
+		content := "您的投稿请求已过期，请重新发起。"
+		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{Content: &content})
+		return
+	}
+	utils.RemoveFromCache(cacheID)
+
+	guildID := i.GuildID
+	originalURL := fmt.Sprintf("https://discord.com/channels/%s/%s/%s", guildID, cacheData.ChannelID, cacheData.MessageID)
+
+	postInfo, err := utils.ValidateDiscordPost(s, originalURL, guildID, i.Member.User.ID)
+	var originalPostTimestamp, originalTitle string
+	if err == nil && postInfo != nil {
+		originalPostTimestamp = postInfo.Timestamp
+		originalTitle = postInfo.Title
+	} else {
+		fmt.Printf("二次验证帖子以获取元数据时出错: %v\n", err)
+	}
+
 	submissionID, err := utils.AddSubmissionV2(
 		i.Member.User.ID, originalURL,
-		recommendTitle, recommendContent,
-		originalTitle, originalAuthor, originalPostTimestamp, i.GuildID, i.Member.User.Username)
+		cacheData.RecommendTitle, cacheData.RecommendContent,
+		originalTitle, cacheData.OriginalAuthor, originalPostTimestamp, guildID, i.Member.User.Username, isAnonymous,
+	)
 	if err != nil {
 		fmt.Printf("Error adding submission to database: %v\n", err)
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: fmt.Sprintf("提交失败，请稍后再试。错误详情: %v", err),
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
+		content := fmt.Sprintf("提交失败，请稍后再试。错误详情: %v", err)
+		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{Content: &content})
 		return
 	}
-	// Send confirmation to user
-	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseUpdateMessage,
-		Data: &discordgo.InteractionResponseData{
-			Content:    "您的安利投稿已成功提交，正在等待审核。",
-			Components: []discordgo.MessageComponent{},
-		},
+
+	content := "您的安利投稿已成功提交，正在等待审核。"
+	s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+		Content:    &content,
+		Components: &[]discordgo.MessageComponent{},
+		Embeds:     &[]*discordgo.MessageEmbed{},
 	})
 
-	// Use the new reusable function to send the review message
 	submission := &model.Submission{
 		ID:               submissionID,
 		UserID:           i.Member.User.ID,
 		URL:              originalURL,
-		RecommendTitle:   recommendTitle,
-		RecommendContent: recommendContent,
-		OriginalAuthor:   originalAuthor,
+		RecommendTitle:   cacheData.RecommendTitle,
+		RecommendContent: cacheData.RecommendContent,
+		OriginalAuthor:   cacheData.OriginalAuthor,
+		IsAnonymous:      isAnonymous,
 	}
 	SendSubmissionToReviewChannel(s, submission)
 }

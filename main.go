@@ -23,22 +23,24 @@ func main() {
 	utils.InitDB()
 
 	// 初始化 gRPC 客户端
-	grpcClient := client.NewGRPCClient()
-	
-	// 连接到 gRPC 服务器
-	err = grpcClient.Connect()
-	if err != nil {
-		log.Printf("gRPC 连接失败: %v", err)
-	} else {
-		// 注册服务
-		err = grpcClient.Register()
+	var grpcClient *client.GRPCClient
+	if os.Getenv("GRPC_ENABLED") != "false" {
+		grpcClient = client.NewGRPCClient()
+		// 连接到 gRPC 服务器
+		err = grpcClient.Connect()
 		if err != nil {
-			log.Printf("gRPC 注册失败: %v", err)
+			log.Printf("gRPC 连接失败: %v", err)
 		} else {
-			// 建立反向连接
-			err = grpcClient.EstablishConnection()
+			// 注册服务
+			err = grpcClient.Register()
 			if err != nil {
-				log.Printf("建立反向连接失败: %v", err)
+				log.Printf("gRPC 注册失败: %v", err)
+			} else {
+				// 建立反向连接
+				err = grpcClient.EstablishConnection()
+				if err != nil {
+					log.Printf("建立反向连接失败: %v", err)
+				}
 			}
 		}
 	}
@@ -52,9 +54,9 @@ func main() {
 	<-c
 
 	log.Println("正在关闭...")
-	
+
 	// 关闭 gRPC 连接
-	if grpcClient.IsConnected() {
+	if grpcClient != nil && grpcClient.IsConnected() {
 		grpcClient.Close()
 	}
 }

@@ -2,6 +2,7 @@ package utils
 
 import (
 	"amway/model"
+	"encoding/base64"
 	"encoding/json"
 	"os"
 	"time"
@@ -45,4 +46,18 @@ func LoadPanelState(filePath string) (*model.PanelState, error) {
 	}
 
 	return &state, nil
+}
+
+// EncodeBase64 encodes a string to a URL-safe base64 string.
+func EncodeBase64(s string) string {
+	return base64.URLEncoding.EncodeToString([]byte(s))
+}
+
+// DecodeBase64 decodes a URL-safe base64 string.
+func DecodeBase64(s string) (string, error) {
+	decodedBytes, err := base64.URLEncoding.DecodeString(s)
+	if err != nil {
+		return "", err
+	}
+	return string(decodedBytes), nil
 }

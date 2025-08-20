@@ -82,6 +82,22 @@ func NewGRPCClient() *GRPCClient {
 		reconnectChan: make(chan struct{}, 1),
 	}
 }
+func (c *GRPCClient) Start() {
+	go func() {
+		if err := c.Connect(); err != nil {
+			log.Fatalf("无法连接到 gRPC 服务器: %v", err)
+		}
+
+		if err := c.Register(); err != nil {
+			log.Fatalf("客户端注册失败: %v", err)
+		}
+
+		if err := c.EstablishConnection(); err != nil {
+			log.Fatalf("建立反向连接失败: %v", err)
+		}
+	}()
+}
+
 
 func (c *GRPCClient) Register() error {
 	if !c.IsConnected() {
@@ -97,7 +113,7 @@ func (c *GRPCClient) Register() error {
 	req := &registryPb.RegisterRequest{
 		ApiKey:   c.token,
 		Address:  c.clientName, // 使用客户端名称作为地址
-		Services: []string{"recommendation.RecommendationService"}, // 注册 recommendation 服务
+		Services: []string{fmt.Sprintf("%s", c.clientName)}, // 注册 recommendation 服务
 	}
 
 	resp, err := c.registryClient.Register(ctx, req)
@@ -131,8 +147,7 @@ func (c *GRPCClient) EstablishConnection() error {
 		MessageType: &registryPb.ConnectionMessage_Register{
 			Register: &registryPb.ConnectionRegister{
 				ApiKey:       c.token,
-				Services:     []string{"recommendation.RecommendationService"},
-				ConnectionId: c.clientName,
+				Services:     []string{fmt.Sprintf("%s.recommendation.RecommendationService", c.clientName)},
 			},
 		},
 	}

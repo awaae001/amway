@@ -4,7 +4,6 @@ import (
 	"amway/command"
 	"amway/config"
 	"amway/handler/amway"
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -19,7 +18,7 @@ var dg *discordgo.Session
 func Start() {
 	err := config.LoadConfig()
 	if err != nil {
-		fmt.Println("Error loading config:", err)
+		log.Printf("Error loading config:", err)
 		return
 	}
 
@@ -29,7 +28,7 @@ func Start() {
 	// Create a new Discord session using the provided bot token.
 	dg, err = discordgo.New("Bot " + config.Cfg.Token)
 	if err != nil {
-		fmt.Println("error creating Discord session,", err)
+		log.Printf("error creating Discord session,", err)
 		return
 	}
 
@@ -37,7 +36,7 @@ func Start() {
 
 	err = dg.Open()
 	if err != nil {
-		fmt.Println("error opening connection,", err)
+		log.Printf("error opening connection,", err)
 		return
 	}
 
@@ -50,7 +49,7 @@ func Start() {
 		}
 	}
 
-	fmt.Println("Bot is now running. Press CTRL-C to exit.")
+	log.Printf("Bot is now running. Press CTRL-C to exit.")
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
 	<-sc

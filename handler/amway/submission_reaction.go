@@ -4,6 +4,7 @@ import (
 	"amway/config"
 	"amway/utils"
 	"fmt"
+	"log"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -45,8 +46,8 @@ func handleReaction(r *discordgo.MessageReaction, increment int) {
 	}
 
 	if submission == nil {
+		log.Printf("Error: Submission not found")
 		return
-		fmt.Println("Error: Submission not found")
 	}
 
 	err = utils.UpdateReactionCount(submission.ID, r.Emoji.Name, increment)
