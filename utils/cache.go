@@ -38,6 +38,18 @@ func GetFromCache(id string) (model.SubmissionData, bool) {
 	return data, found
 }
 
+// UpdateCache updates an existing cache entry.
+func UpdateCache(id string, data model.SubmissionData) {
+	cacheMutex.Lock()
+	defer cacheMutex.Unlock()
+
+	// It's important to preserve the original creation time
+	if oldData, ok := submissionCache[id]; ok {
+		data.CreatedAt = oldData.CreatedAt
+		submissionCache[id] = data
+	}
+}
+
 // RemoveFromCache removes submission data from the cache by ID.
 func RemoveFromCache(id string) {
 	cacheMutex.Lock()

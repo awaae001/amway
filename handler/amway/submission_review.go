@@ -58,7 +58,7 @@ func ApproveSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCrea
 		if err != nil {
 			fmt.Printf("Error getting submission: %v\n", err)
 			s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-				Content: stringPtr("无法找到该投稿。"),
+				Content: stringPtr("无法找到该投稿 "),
 			})
 			return
 		}
@@ -68,7 +68,7 @@ func ApproveSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCrea
 		if err != nil {
 			fmt.Printf("Error updating submission status: %v\n", err)
 			s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-				Content: stringPtr("更新状态失败。"),
+				Content: stringPtr("更新状态失败 "),
 			})
 			return
 		}
@@ -224,7 +224,7 @@ func RejectSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreat
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: "更新状态失败。",
+				Content: "更新状态失败 ",
 				Flags:   discordgo.MessageFlagsEphemeral,
 			},
 		})
@@ -256,7 +256,7 @@ func IgnoreSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreat
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: "更新状态失败。",
+				Content: "更新状态失败 ",
 				Flags:   discordgo.MessageFlagsEphemeral,
 			},
 		})
@@ -289,7 +289,7 @@ func BanSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) 
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: "无法找到该投稿。",
+				Content: "无法找到该投稿 ",
 				Flags:   discordgo.MessageFlagsEphemeral,
 			},
 		})
@@ -303,7 +303,7 @@ func BanSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) 
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: "封禁用户失败。",
+				Content: "封禁用户失败 ",
 				Flags:   discordgo.MessageFlagsEphemeral,
 			},
 		})
@@ -341,7 +341,7 @@ func DeleteSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreat
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: "删除投稿失败。",
+				Content: "删除投稿失败 ",
 				Flags:   discordgo.MessageFlagsEphemeral,
 			},
 		})

@@ -36,7 +36,7 @@ func SubmissionModalHandler(s *discordgo.Session, i *discordgo.InteractionCreate
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: "所有字段都是必填的，请重新提交。",
+				Content: "所有字段都是必填的，请重新提交 ",
 				Flags:   discordgo.MessageFlagsEphemeral,
 			},
 		})
@@ -50,7 +50,7 @@ func SubmissionModalHandler(s *discordgo.Session, i *discordgo.InteractionCreate
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: "提交失败，请稍后再试。",
+				Content: "提交失败，请稍后再试 ",
 				Flags:   discordgo.MessageFlagsEphemeral,
 			},
 		})
@@ -61,7 +61,7 @@ func SubmissionModalHandler(s *discordgo.Session, i *discordgo.InteractionCreate
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
-			Content: "您的投稿已成功提交，正在等待审核。",
+			Content: "您的投稿已成功提交，正在等待审核 ",
 			Flags:   discordgo.MessageFlagsEphemeral,
 		},
 	})

@@ -9,5 +9,7 @@ type SubmissionData struct {
 	OriginalAuthor   string
 	RecommendTitle   string
 	RecommendContent string
+	EphChannelID     string
+	EphMessageID     string
 	CreatedAt        time.Time
 }

@@ -29,7 +29,7 @@ func AmwayAdminCommandHandler(s *discordgo.Session, i *discordgo.InteractionCrea
 		// 权限检查：只有管理员才能使用此命令
 		if !utils.CheckAuth(i.Member.User.ID, i.Member.Roles) {
 			s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-				Content: utils.StringPtr("❌ 您没有权限执行此操作。"),
+				Content: utils.StringPtr("❌ 您没有权限执行此操作 "),
 			})
 			return
 		}
@@ -57,7 +57,7 @@ func AmwayAdminCommandHandler(s *discordgo.Session, i *discordgo.InteractionCrea
 			handleResendSubmission(s, i, input)
 		default:
 			s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-				Content: utils.StringPtr("❌ 未知的操作类型。"),
+				Content: utils.StringPtr("❌ 未知的操作类型 "),
 			})
 		}
 	}()
@@ -75,7 +75,7 @@ func handlePrintSubmission(s *discordgo.Session, i *discordgo.InteractionCreate,
 
 	if submission == nil {
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-			Content: utils.StringPtr(fmt.Sprintf("❌ 未找到ID为 %s 的投稿。", submissionID)),
+			Content: utils.StringPtr(fmt.Sprintf("❌ 未找到ID为 %s 的投稿 ", submissionID)),
 		})
 		return
 	}
@@ -208,7 +208,7 @@ func handleDeleteSubmission(s *discordgo.Session, i *discordgo.InteractionCreate
 
 	if submission == nil {
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-			Content: utils.StringPtr(fmt.Sprintf("❌ 未找到ID为 %s 的投稿。", submissionID)),
+			Content: utils.StringPtr(fmt.Sprintf("❌ 未找到ID为 %s 的投稿 ", submissionID)),
 		})
 		return
 	}
@@ -224,7 +224,7 @@ func handleDeleteSubmission(s *discordgo.Session, i *discordgo.InteractionCreate
 
 	if isDeleted {
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-			Content: utils.StringPtr(fmt.Sprintf("ℹ️ 投稿 %s 已经被标记为删除。", submissionID)),
+			Content: utils.StringPtr(fmt.Sprintf("ℹ️ 投稿 %s 已经被标记为删除 ", submissionID)),
 		})
 		return
 	}
@@ -239,7 +239,7 @@ func handleDeleteSubmission(s *discordgo.Session, i *discordgo.InteractionCreate
 	}
 
 	s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-		Content: utils.StringPtr(fmt.Sprintf("✅ 投稿 %s 已成功标记为删除。", submissionID)),
+		Content: utils.StringPtr(fmt.Sprintf("✅ 投稿 %s 已成功标记为删除 ", submissionID)),
 	})
 }
 
@@ -256,7 +256,7 @@ func handleResendSubmission(s *discordgo.Session, i *discordgo.InteractionCreate
 
 	if submission == nil {
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-			Content: utils.StringPtr(fmt.Sprintf("❌ 未找到ID为 %s 的投稿。", submissionID)),
+			Content: utils.StringPtr(fmt.Sprintf("❌ 未找到ID为 %s 的投稿 ", submissionID)),
 		})
 		return
 	}
@@ -265,7 +265,7 @@ func handleResendSubmission(s *discordgo.Session, i *discordgo.InteractionCreate
 	publishChannelID := config.Cfg.AmwayBot.Amway.PublishChannelID
 	if publishChannelID == "" {
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-			Content: utils.StringPtr("❌ 配置错误：未设置发布频道 ID。"),
+			Content: utils.StringPtr("❌ 配置错误：未设置发布频道 ID "),
 		})
 		return
 	}
@@ -323,7 +323,7 @@ func handleResendSubmission(s *discordgo.Session, i *discordgo.InteractionCreate
 	}
 
 	s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-		Content: utils.StringPtr(fmt.Sprintf("✅ 投稿 %s 已成功重新发送到 <#%s>。\n消息链接：https://discord.com/channels/%s/%s/%s",
+		Content: utils.StringPtr(fmt.Sprintf("✅ 投稿 %s 已成功重新发送到 <#%s> \n消息链接：https://discord.com/channels/%s/%s/%s",
 			submissionID, publishChannelID, submission.GuildID, publishChannelID, message.ID)),
 	})
 }

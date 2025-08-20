@@ -12,8 +12,8 @@ import (
 )
 
 func createPanelCommandHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	// 1. 立即响应交互，告诉 Discord 我们收到了请求。
-	// 这必须在 3 秒内完成。我们使用延迟响应。
+	// 1. 立即响应交互，告诉 Discord 我们收到了请求
+	// 这必须在 3 秒内完成 我们使用延迟响应
 	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
@@ -34,7 +34,7 @@ func createPanelCommandHandler(s *discordgo.Session, i *discordgo.InteractionCre
 			if r := recover(); r != nil {
 				log.Printf("Panic in panel creation goroutine: %v", r)
 				s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-					Content: utils.StringPtr("创建面板时发生内部错误。"),
+					Content: utils.StringPtr("创建面板时发生内部错误 "),
 				})
 			}
 		}()
@@ -44,7 +44,7 @@ func createPanelCommandHandler(s *discordgo.Session, i *discordgo.InteractionCre
 		case <-ctx.Done():
 			log.Printf("Panel creation timed out")
 			s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-				Content: utils.StringPtr("创建面板超时，请稍后重试。"),
+				Content: utils.StringPtr("创建面板超时，请稍后重试 "),
 			})
 			return
 		default:
@@ -52,7 +52,7 @@ func createPanelCommandHandler(s *discordgo.Session, i *discordgo.InteractionCre
 		// 权限检查
 		if !utils.CheckAuth(i.Member.User.ID, i.Member.Roles) {
 			s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-				Content: utils.StringPtr("您没有权限执行此操作。"),
+				Content: utils.StringPtr("您没有权限执行此操作 "),
 			})
 			return
 		}
@@ -62,7 +62,7 @@ func createPanelCommandHandler(s *discordgo.Session, i *discordgo.InteractionCre
 		if channelID == "" {
 			log.Println("Error: PublishChannelID is not configured")
 			s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-				Content: utils.StringPtr("配置错误：未设置发布频道 ID。"),
+				Content: utils.StringPtr("配置错误：未设置发布频道 ID "),
 			})
 			return
 		}
@@ -70,7 +70,7 @@ func createPanelCommandHandler(s *discordgo.Session, i *discordgo.InteractionCre
 		// 发送到目标频道
 		message, err := s.ChannelMessageSendComplex(channelID, CreatePanelMessage())
 
-		// 3. 根据结果编辑原始的延迟响应。
+		// 3. 根据结果编辑原始的延迟响应
 		if err != nil {
 			log.Printf("Error sending panel message: %v", err)
 			s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{

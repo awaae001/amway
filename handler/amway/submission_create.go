@@ -150,10 +150,23 @@ func ConfirmPostHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		return
 	}
 
+	channelID := parts[1]
+	messageID := parts[2]
+	originalAuthor := parts[3]
+
+	cacheData := model.SubmissionData{
+		ChannelID:      channelID,
+		MessageID:      messageID,
+		OriginalAuthor: originalAuthor,
+		EphChannelID:   i.Message.ChannelID,
+		EphMessageID:   i.Message.ID,
+	}
+	cacheID := utils.AddToCache(cacheData)
+
 	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseModal,
 		Data: &discordgo.InteractionResponseData{
-			CustomID: fmt.Sprintf("submission_content_modal:%s", strings.Join(parts[1:], ":")),
+			CustomID: fmt.Sprintf("submission_content_modal:%s", cacheID),
 			Title:    "投稿第二步：安利内容",
 			Components: []discordgo.MessageComponent{
 				discordgo.ActionsRow{
@@ -201,28 +214,40 @@ func CancelSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreat
 }
 
 func ContentSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{Flags: discordgo.MessageFlagsEphemeral},
-	})
-	if err != nil {
-		fmt.Printf("Error sending deferred response: %v\n", err)
-		return
-	}
-
 	data := i.ModalSubmitData()
 	customID := data.CustomID
 	parts := strings.Split(customID, ":")
 
-	if len(parts) < 4 {
-		errMsg := "数据格式错误，请重新开始投稿流程。"
-		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{Content: &errMsg})
+	if len(parts) < 2 {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "数据格式错误，请重新开始投稿流程。",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
 		return
 	}
 
-	channelID := parts[1]
-	messageID := parts[2]
-	originalAuthor := parts[3]
+	cacheID := parts[1]
+	cacheData, found := utils.GetFromCache(cacheID)
+	if !found {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "您的投稿请求已过期，请重新发起。",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+		return
+	}
+
+	emptyComponents := []discordgo.MessageComponent{}
+	s.ChannelMessageEditComplex(&discordgo.MessageEdit{
+		Channel:    cacheData.EphChannelID,
+		ID:         cacheData.EphMessageID,
+		Components: &emptyComponents,
+	})
 
 	var recommendTitle, recommendContent string
 	for _, component := range data.Components {
@@ -241,20 +266,19 @@ func ContentSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCrea
 	}
 
 	if recommendTitle == "" || recommendContent == "" {
-		errMsg := "标题和内容都是必填的，请重新提交。"
-		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{Content: &errMsg})
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "标题和内容都是必填的，请重新提交。",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
 		return
 	}
 
-	// Store data in cache
-	cacheData := model.SubmissionData{
-		ChannelID:        channelID,
-		MessageID:        messageID,
-		OriginalAuthor:   originalAuthor,
-		RecommendTitle:   strings.TrimLeft(recommendTitle, "#"),
-		RecommendContent: recommendContent,
-	}
-	cacheID := utils.AddToCache(cacheData)
+	cacheData.RecommendTitle = strings.TrimLeft(recommendTitle, "#")
+	cacheData.RecommendContent = recommendContent
+	utils.UpdateCache(cacheID, cacheData)
 
 	embed := &discordgo.MessageEmbed{
 		Title:       "投稿预览",
@@ -291,27 +315,27 @@ func ContentSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCrea
 		},
 	}
 
-	s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-		Embeds:     &[]*discordgo.MessageEmbed{embed},
-		Components: &components,
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Embeds:     []*discordgo.MessageEmbed{embed},
+			Components: components,
+			Flags:      discordgo.MessageFlagsEphemeral,
+		},
 	})
 }
 
 func FinalSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{Flags: discordgo.MessageFlagsEphemeral},
-	})
-	if err != nil {
-		fmt.Printf("Error sending deferred response in FinalSubmissionHandler: %v\n", err)
-		return
-	}
-
 	customID := i.MessageComponentData().CustomID
 	parts := strings.Split(customID, ":")
 	if len(parts) < 3 {
-		content := "处理您的请求时数据格式错误，请重新开始投稿。"
-		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{Content: &content})
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "处理您的请求时数据格式错误，请重新开始投稿。",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
 		return
 	}
 
@@ -321,11 +345,34 @@ func FinalSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate
 
 	cacheData, found := utils.GetFromCache(cacheID)
 	if !found {
-		content := "您的投稿请求已过期，请重新发起。"
-		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{Content: &content})
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "您的投稿请求已过期，请重新发起。",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
 		return
 	}
 	utils.RemoveFromCache(cacheID)
+
+	content := "🍻您的安利投稿已成功提交，正在等待审核"
+	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseUpdateMessage,
+		Data: &discordgo.InteractionResponseData{
+			Content:    content,
+			Components: []discordgo.MessageComponent{},
+			Embeds:     []*discordgo.MessageEmbed{},
+		},
+	})
+	if err != nil {
+		fmt.Printf("Error sending final response: %v\n", err)
+		// As a fallback, try to edit the original interaction
+		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+			Content: &content,
+		})
+		return
+	}
 
 	guildID := i.GuildID
 	originalURL := fmt.Sprintf("https://discord.com/channels/%s/%s/%s", guildID, cacheData.ChannelID, cacheData.MessageID)
@@ -346,17 +393,10 @@ func FinalSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate
 	)
 	if err != nil {
 		fmt.Printf("Error adding submission to database: %v\n", err)
-		content := fmt.Sprintf("提交失败，请稍后再试。错误详情: %v", err)
-		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{Content: &content})
+		errorContent := fmt.Sprintf("提交失败，请稍后再试。错误详情: %v", err)
+		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{Content: &errorContent})
 		return
 	}
-
-	content := "您的安利投稿已成功提交，正在等待审核。"
-	s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-		Content:    &content,
-		Components: &[]discordgo.MessageComponent{},
-		Embeds:     &[]*discordgo.MessageEmbed{},
-	})
 
 	submission := &model.Submission{
 		ID:               submissionID,
