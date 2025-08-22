@@ -2,6 +2,7 @@ package amway
 
 import (
 	"amway/config"
+	"amway/db"
 	"amway/model"
 	"amway/utils"
 	"fmt"
@@ -156,7 +157,7 @@ func ApproveSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCrea
 
 	go func() {
 		// Get submission details
-		submission, err := utils.GetSubmission(submissionID)
+		submission, err := db.GetSubmission(submissionID)
 		if err != nil {
 			fmt.Printf("Error getting submission: %v\n", err)
 			s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
@@ -166,7 +167,7 @@ func ApproveSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCrea
 		}
 
 		// Update submission status
-		err = utils.UpdateSubmissionStatus(submissionID, "approved")
+		err = db.UpdateSubmissionStatus(submissionID, "approved")
 		if err != nil {
 			fmt.Printf("Error updating submission status: %v\n", err)
 			s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
@@ -181,7 +182,7 @@ func ApproveSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCrea
 			fmt.Printf("Error sending publication message for submission %s: %v\n", submissionID, err)
 		} else {
 			// Update submission with the final message ID
-			if err := utils.UpdateFinalAmwayMessageID(submissionID, publishMsg.ID); err != nil {
+			if err := db.UpdateFinalAmwayMessageID(submissionID, publishMsg.ID); err != nil {
 				fmt.Printf("Error updating final amway message ID for submission %s: %v\n", submissionID, err)
 			}
 			// Send a notification to the original post
@@ -208,7 +209,7 @@ func ApproveSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCrea
 func RejectSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	submissionID := strings.Split(i.MessageComponentData().CustomID, ":")[1]
 
-	err := utils.UpdateSubmissionStatus(submissionID, "rejected")
+	err := db.UpdateSubmissionStatus(submissionID, "rejected")
 	if err != nil {
 		fmt.Printf("Error updating submission status: %v\n", err)
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -242,7 +243,7 @@ func RejectSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreat
 func IgnoreSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	submissionID := strings.Split(i.MessageComponentData().CustomID, ":")[1]
 
-	err := utils.UpdateSubmissionStatus(submissionID, "ignored")
+	err := db.UpdateSubmissionStatus(submissionID, "ignored")
 	if err != nil {
 		fmt.Printf("Error updating submission status: %v\n", err)
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -277,7 +278,7 @@ func BanSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) 
 	submissionID := strings.Split(i.MessageComponentData().CustomID, ":")[1]
 
 	// Get submission to get user ID
-	submission, err := utils.GetSubmission(submissionID)
+	submission, err := db.GetSubmission(submissionID)
 	if err != nil {
 		fmt.Printf("Error getting submission: %v\n", err)
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -291,7 +292,7 @@ func BanSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) 
 	}
 
 	// Ban the user
-	err = utils.BanUser(submission.UserID, "违规投稿")
+	err = db.BanUser(submission.UserID, "违规投稿")
 	if err != nil {
 		fmt.Printf("Error banning user: %v\n", err)
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -305,7 +306,7 @@ func BanSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) 
 	}
 
 	// Update submission status
-	err = utils.UpdateSubmissionStatus(submissionID, "rejected")
+	err = db.UpdateSubmissionStatus(submissionID, "rejected")
 	if err != nil {
 		fmt.Printf("Error updating submission status: %v\n", err)
 	}
@@ -331,7 +332,7 @@ func BanSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) 
 func DeleteSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	submissionID := strings.Split(i.MessageComponentData().CustomID, ":")[1]
 
-	err := utils.DeleteSubmission(submissionID)
+	err := db.DeleteSubmission(submissionID)
 	if err != nil {
 		fmt.Printf("Error deleting submission: %v\n", err)
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{

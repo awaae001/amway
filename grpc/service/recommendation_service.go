@@ -4,7 +4,7 @@ import (
 	"context"
 	"strconv"
 
-	"amway/utils"
+	"amway/db"
 	recommendationPb "amway/grpc/gen/recommendation"
 
 	"google.golang.org/grpc/codes"
@@ -28,7 +28,7 @@ func (s *RecommendationServiceImpl) GetRecommendation(ctx context.Context, req *
 	}
 
 	// Query the database for the submission
-	submission, err := utils.GetSubmission(req.Id)
+	submission, err := db.GetSubmission(req.Id)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "查询数据库失败: %v", err)
 	}
@@ -60,7 +60,7 @@ func (s *RecommendationServiceImpl) GetRecommendationsByAuthor(ctx context.Conte
 	guildIdStr := strconv.FormatInt(req.GuildId, 10)
 
 	// Query the database for submissions by author
-	submissions, err := utils.GetSubmissionsByAuthor(req.AuthorId, guildIdStr)
+	submissions, err := db.GetSubmissionsByAuthor(req.AuthorId, guildIdStr)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "查询数据库失败: %v", err)
 	}

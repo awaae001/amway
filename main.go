@@ -2,8 +2,8 @@ package main
 
 import (
 	"amway/bot"
+	"amway/db"
 	"amway/grpc/client"
-	"amway/utils"
 	"log"
 	"os"
 	"os/signal"
@@ -20,7 +20,7 @@ func main() {
 	}
 
 	// 初始化数据库
-	utils.InitDB()
+	db.InitDB()
 
 	// 初始化 gRPC 客户端
 	var grpcClient *client.GRPCClient

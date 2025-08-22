@@ -1,8 +1,8 @@
 package amway
 
 import (
+	"amway/db"
 	"amway/model"
-	"amway/utils"
 	"fmt"
 
 	"github.com/bwmarrin/discordgo"
@@ -44,7 +44,7 @@ func SubmissionModalHandler(s *discordgo.Session, i *discordgo.InteractionCreate
 	}
 
 	// Add submission to database
-	submissionID, err := utils.AddSubmission(i.Member.User.ID, url, title, content, i.GuildID, i.Member.User.Username)
+	submissionID, err := db.AddSubmission(i.Member.User.ID, url, title, content, i.GuildID, i.Member.User.Username)
 	if err != nil {
 		fmt.Printf("Error adding submission to database: %v\n", err)
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{

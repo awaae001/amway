@@ -2,7 +2,7 @@ package amway
 
 import (
 	"amway/config"
-	"amway/utils"
+	"amway/db"
 	"fmt"
 	"log"
 
@@ -40,7 +40,7 @@ func MessageReactionRemove(s *discordgo.Session, r *discordgo.MessageReactionRem
 }
 
 func handleReaction(r *discordgo.MessageReaction, increment int) {
-	submission, err := utils.GetSubmissionByMessageID(r.MessageID)
+	submission, err := db.GetSubmissionByMessageID(r.MessageID)
 	if err != nil {
 		return
 	}
@@ -50,7 +50,7 @@ func handleReaction(r *discordgo.MessageReaction, increment int) {
 		return
 	}
 
-	err = utils.UpdateReactionCount(submission.ID, r.Emoji.Name, increment)
+	err = db.UpdateReactionCount(submission.ID, r.Emoji.Name, increment)
 	if err != nil {
 		fmt.Printf("Error updating reaction count for submission %s: %v\n", submission.ID, err)
 	}

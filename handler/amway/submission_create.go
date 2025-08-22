@@ -1,6 +1,7 @@
 package amway
 
 import (
+	"amway/db"
 	"amway/model"
 	"amway/utils"
 	"fmt"
@@ -10,7 +11,7 @@ import (
 )
 
 func CreateSubmissionButtonHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	banned, err := utils.IsUserBanned(i.Member.User.ID)
+	banned, err := db.IsUserBanned(i.Member.User.ID)
 	if err != nil {
 		fmt.Printf("Error checking if user is banned: %v\n", err)
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -386,7 +387,7 @@ func FinalSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate
 		fmt.Printf("二次验证帖子以获取元数据时出错: %v\n", err)
 	}
 
-	submissionID, err := utils.AddSubmissionV2(
+	submissionID, err := db.AddSubmissionV2(
 		i.Member.User.ID, originalURL,
 		cacheData.RecommendTitle, cacheData.RecommendContent,
 		originalTitle, cacheData.OriginalAuthor, originalPostTimestamp, guildID, i.Member.User.Username, isAnonymous,

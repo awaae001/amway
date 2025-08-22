@@ -1,0 +1,89 @@
+package db
+
+import (
+	"log"
+	"strings"
+)
+
+// createTables creates the necessary tables in the database if they don't exist.
+func createTables() {
+	// SQL statement to create the 'recommendations' table.
+	createRecommendationsTableSQL := `
+	CREATE TABLE IF NOT EXISTS recommendations (
+		id TEXT PRIMARY KEY,
+		author_id TEXT NOT NULL,
+		author_nickname TEXT,
+		content TEXT NOT NULL,
+		post_url TEXT,
+		upvotes INTEGER NOT NULL DEFAULT 0,
+		questions INTEGER NOT NULL DEFAULT 0,
+		downvotes INTEGER NOT NULL DEFAULT 0,
+		created_at INTEGER NOT NULL,
+		reviewer_id TEXT,
+		is_blocked INTEGER NOT NULL DEFAULT 0,
+		guild_id TEXT,
+		original_title TEXT,
+		original_author TEXT,
+		recommend_title TEXT,
+		recommend_content TEXT,
+		original_post_timestamp TEXT,
+		final_amway_message_id TEXT,
+		is_deleted INTEGER NOT NULL DEFAULT 0,
+		is_anonymous INTEGER NOT NULL DEFAULT 0
+	);`
+
+	_, err := DB.Exec(createRecommendationsTableSQL)
+	if err != nil {
+		log.Fatalf("Failed to create recommendations table: %v", err)
+	}
+
+	// SQL statement to create the 'banned_users' table.
+	createBannedUsersTableSQL := `
+	CREATE TABLE IF NOT EXISTS banned_users (
+		user_id TEXT PRIMARY KEY,
+		reason TEXT,
+		timestamp INTEGER NOT NULL
+	);`
+
+	_, err = DB.Exec(createBannedUsersTableSQL)
+	if err != nil {
+		log.Fatalf("Failed to create banned_users table: %v", err)
+	}
+
+	// SQL statement to create the 'id_counter' table for sequential ID generation.
+	createIdCounterTableSQL := `
+	CREATE TABLE IF NOT EXISTS id_counter (
+		counter_name TEXT PRIMARY KEY,
+		current_value INTEGER NOT NULL DEFAULT 0
+	);`
+
+	_, err = DB.Exec(createIdCounterTableSQL)
+	if err != nil {
+		log.Fatalf("Failed to create id_counter table: %v", err)
+	}
+
+	// Initialize the submission counter if it doesn't exist
+	_, err = DB.Exec("INSERT OR IGNORE INTO id_counter(counter_name, current_value) VALUES('submission_id', 0)")
+	if err != nil {
+		log.Fatalf("Failed to initialize submission counter: %v", err)
+	}
+
+	// Add is_deleted column if it doesn't exist (migration for existing databases)
+	_, err = DB.Exec("ALTER TABLE recommendations ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0")
+	if err != nil && !isColumnExistsError(err) {
+		log.Printf("Failed to add is_deleted column, it might already exist: %v", err)
+	}
+
+	// Add is_anonymous column if it doesn't exist (migration for existing databases)
+	_, err = DB.Exec("ALTER TABLE recommendations ADD COLUMN is_anonymous INTEGER NOT NULL DEFAULT 0")
+	if err != nil && !isColumnExistsError(err) {
+		log.Printf("Failed to add is_anonymous column, it might already exist: %v", err)
+	}
+
+	log.Println("Database tables initialized successfully.")
+}
+
+// isColumnExistsError checks if the error is due to column already existing
+func isColumnExistsError(err error) bool {
+	return strings.Contains(err.Error(), "duplicate column name")
+}

@@ -2,6 +2,7 @@ package amway
 
 import (
 	"amway/config"
+	"amway/db"
 	"amway/utils"
 	"fmt"
 	"log"
@@ -65,7 +66,7 @@ func AmwayAdminCommandHandler(s *discordgo.Session, i *discordgo.InteractionCrea
 
 // handlePrintSubmission 打印投稿元数据
 func handlePrintSubmission(s *discordgo.Session, i *discordgo.InteractionCreate, submissionID string) {
-	submission, err := utils.GetSubmissionWithDeleted(submissionID)
+	submission, err := db.GetSubmissionWithDeleted(submissionID)
 	if err != nil {
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 			Content: utils.StringPtr(fmt.Sprintf("❌ 获取投稿信息失败：%v", err)),
@@ -81,7 +82,7 @@ func handlePrintSubmission(s *discordgo.Session, i *discordgo.InteractionCreate,
 	}
 
 	// 检查是否已删除
-	isDeleted, _ := utils.IsSubmissionDeleted(submissionID)
+	isDeleted, _ := db.IsSubmissionDeleted(submissionID)
 	deletedStatus := ""
 	if isDeleted {
 		deletedStatus = " **[已删除]**"
@@ -198,7 +199,7 @@ func handlePrintSubmission(s *discordgo.Session, i *discordgo.InteractionCreate,
 // handleDeleteSubmission 删除（标记）投稿
 func handleDeleteSubmission(s *discordgo.Session, i *discordgo.InteractionCreate, submissionID string) {
 	// 首先检查投稿是否存在
-	submission, err := utils.GetSubmissionWithDeleted(submissionID)
+	submission, err := db.GetSubmissionWithDeleted(submissionID)
 	if err != nil {
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 			Content: utils.StringPtr(fmt.Sprintf("❌ 获取投稿信息失败：%v", err)),
@@ -214,7 +215,7 @@ func handleDeleteSubmission(s *discordgo.Session, i *discordgo.InteractionCreate
 	}
 
 	// 检查是否已经删除
-	isDeleted, err := utils.IsSubmissionDeleted(submissionID)
+	isDeleted, err := db.IsSubmissionDeleted(submissionID)
 	if err != nil {
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 			Content: utils.StringPtr(fmt.Sprintf("❌ 检查删除状态失败：%v", err)),
@@ -230,7 +231,7 @@ func handleDeleteSubmission(s *discordgo.Session, i *discordgo.InteractionCreate
 	}
 
 	// 标记为删除
-	err = utils.MarkSubmissionDeleted(submissionID)
+	err = db.MarkSubmissionDeleted(submissionID)
 	if err != nil {
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 			Content: utils.StringPtr(fmt.Sprintf("❌ 删除投稿失败：%v", err)),
@@ -246,7 +247,7 @@ func handleDeleteSubmission(s *discordgo.Session, i *discordgo.InteractionCreate
 // handleResendSubmission 重新发送投稿
 func handleResendSubmission(s *discordgo.Session, i *discordgo.InteractionCreate, submissionID string) {
 	// 获取投稿信息（包括已删除的）
-	submission, err := utils.GetSubmissionWithDeleted(submissionID)
+	submission, err := db.GetSubmissionWithDeleted(submissionID)
 	if err != nil {
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 			Content: utils.StringPtr(fmt.Sprintf("❌ 获取投稿信息失败：%v", err)),
