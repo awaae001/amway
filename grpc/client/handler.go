@@ -8,8 +8,8 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	registryPb "amway/grpc/gen/registry"
 	recommendationPb "amway/grpc/gen/recommendation"
+	registryPb "amway/grpc/gen/registry"
 )
 
 func (c *GRPCClient) handleConnectionMessages(stream registryPb.RegistryService_EstablishConnectionClient) {
@@ -185,8 +185,8 @@ func (c *GRPCClient) handleGetRecommendationsByAuthor(ctx context.Context, paylo
 func (c *GRPCClient) handleHeartbeat(stream registryPb.RegistryService_EstablishConnectionClient, heartbeat *registryPb.Heartbeat) {
 	receivedTime := time.Now()
 	receivedTimestamp := time.Unix(heartbeat.Timestamp, 0)
-	
-	log.Printf("收到服务器心跳包 - ConnectionID: %s, 服务器时间: %s, 接收时间: %s, 延迟: %v", 
+
+	log.Printf("收到服务器心跳包 - ConnectionID: %s, 服务器时间: %s, 接收时间: %s, 延迟: %v",
 		heartbeat.ConnectionId,
 		receivedTimestamp.Format("15:04:05"),
 		receivedTime.Format("15:04:05"),
@@ -207,8 +207,8 @@ func (c *GRPCClient) handleHeartbeat(stream registryPb.RegistryService_Establish
 	if err != nil {
 		log.Printf("❌ 发送心跳响应失败: %v", err)
 	} else {
-		log.Printf("已发送心跳响应 - ConnectionID: %s, 响应时间: %s", 
-			c.clientName, 
+		log.Printf("已发送心跳响应 - ConnectionID: %s, 响应时间: %s",
+			c.clientName,
 			time.Unix(responseTime, 0).Format("15:04:05"))
 	}
 }

@@ -143,3 +143,25 @@ func MessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 	log.Printf("Panel updated due to new message in channel %s", m.ChannelID)
 }
+
+// CreatePanelMessage 创建标准的投稿面板消息
+func CreatePanelMessage() *discordgo.MessageSend {
+	embed := &discordgo.MessageEmbed{
+		Title:       "鉴赏小纸条投稿面板",
+		Description: "点击下方按钮开始投稿您的简评\n你的投稿通过后将会被发送到此频道以及对应帖子下方\n您没有必要在标题添加 `#` ，机器人会自动处理大字加粗",
+		Color:       0x5865F2, // Discord Blurple
+	}
+	button := discordgo.Button{
+		Label:    "点击投稿",
+		Style:    discordgo.PrimaryButton,
+		CustomID: "create_submission_button",
+		Emoji:    &discordgo.ComponentEmoji{Name: "📝"},
+	}
+
+	return &discordgo.MessageSend{
+		Embeds: []*discordgo.MessageEmbed{embed},
+		Components: []discordgo.MessageComponent{
+			discordgo.ActionsRow{Components: []discordgo.MessageComponent{button}},
+		},
+	}
+}

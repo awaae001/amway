@@ -10,8 +10,8 @@ import (
 
 	"google.golang.org/grpc"
 
-	registryPb "amway/grpc/gen/registry"
 	recommendationPb "amway/grpc/gen/recommendation"
+	registryPb "amway/grpc/gen/registry"
 	"amway/grpc/service"
 )
 
@@ -25,35 +25,35 @@ const (
 )
 
 type ReconnectConfig struct {
-	MaxRetries      int
-	BaseDelay       time.Duration
-	MaxDelay        time.Duration
-	BackoffFactor   float64
+	MaxRetries          int
+	BaseDelay           time.Duration
+	MaxDelay            time.Duration
+	BackoffFactor       float64
 	HealthCheckInterval time.Duration
 }
 
 type GRPCClient struct {
-	conn             *grpc.ClientConn
-	registryClient   registryPb.RegistryServiceClient
-	recommendationClient recommendationPb.RecommendationServiceClient
+	conn                       *grpc.ClientConn
+	registryClient             registryPb.RegistryServiceClient
+	recommendationClient       recommendationPb.RecommendationServiceClient
 	localRecommendationService *service.RecommendationServiceImpl
-	
-	serverAddress    string
-	clientName       string
-	token           string
-	
+
+	serverAddress string
+	clientName    string
+	token         string
+
 	// 连接状态管理
-	connectionState  int32 // 使用 atomic 操作
-	connectionMutex  sync.RWMutex
-	
+	connectionState int32 // 使用 atomic 操作
+	connectionMutex sync.RWMutex
+
 	// 重连配置
-	reconnectConfig  ReconnectConfig
-	
+	reconnectConfig ReconnectConfig
+
 	// 控制通道
-	ctx              context.Context
-	cancel           context.CancelFunc
-	reconnectChan    chan struct{}
-	
+	ctx           context.Context
+	cancel        context.CancelFunc
+	reconnectChan chan struct{}
+
 	// 连接流
 	connectionStream registryPb.RegistryService_EstablishConnectionClient
 	streamMutex      sync.RWMutex
@@ -61,22 +61,22 @@ type GRPCClient struct {
 
 func NewGRPCClient() *GRPCClient {
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	return &GRPCClient{
-		serverAddress: os.Getenv("GRPC_SERVER_ADDRESS"),
-		clientName:    os.Getenv("GRPC_CLIENT_NAME"),
-		token:         os.Getenv("GRPC_TOKEN"),
+		serverAddress:              os.Getenv("GRPC_SERVER_ADDRESS"),
+		clientName:                 os.Getenv("GRPC_CLIENT_NAME"),
+		token:                      os.Getenv("GRPC_TOKEN"),
 		localRecommendationService: service.NewRecommendationService(),
-		
+
 		connectionState: int32(Disconnected),
 		reconnectConfig: ReconnectConfig{
-			MaxRetries:         10,
-			BaseDelay:          2 * time.Second,
-			MaxDelay:           60 * time.Second,
-			BackoffFactor:      2.0,
+			MaxRetries:          10,
+			BaseDelay:           2 * time.Second,
+			MaxDelay:            60 * time.Second,
+			BackoffFactor:       2.0,
 			HealthCheckInterval: 30 * time.Second,
 		},
-		
+
 		ctx:           ctx,
 		cancel:        cancel,
 		reconnectChan: make(chan struct{}, 1),
@@ -98,7 +98,6 @@ func (c *GRPCClient) Start() {
 	}()
 }
 
-
 func (c *GRPCClient) Register() error {
 	if !c.IsConnected() {
 		return fmt.Errorf("未连接到服务器")
@@ -112,8 +111,8 @@ func (c *GRPCClient) Register() error {
 	// 注册请求
 	req := &registryPb.RegisterRequest{
 		ApiKey:   c.token,
-		Address:  c.clientName, // 使用客户端名称作为地址
-		Services: []string{fmt.Sprintf("%s", c.clientName)}, // 注册 recommendation 服务
+		Address:  c.clientName,           // 使用客户端名称作为地址
+		Services: []string{c.clientName}, // 注册 recommendation 服务
 	}
 
 	resp, err := c.registryClient.Register(ctx, req)
@@ -146,8 +145,8 @@ func (c *GRPCClient) EstablishConnection() error {
 	registerMsg := &registryPb.ConnectionMessage{
 		MessageType: &registryPb.ConnectionMessage_Register{
 			Register: &registryPb.ConnectionRegister{
-				ApiKey:       c.token,
-				Services:     []string{fmt.Sprintf("%s.recommendation.RecommendationService", c.clientName)},
+				ApiKey:   c.token,
+				Services: []string{fmt.Sprintf("%s.recommendation.RecommendationService", c.clientName)},
 			},
 		},
 	}
@@ -172,10 +171,10 @@ func (c *GRPCClient) EstablishConnection() error {
 
 func (c *GRPCClient) Close() error {
 	c.cancel() // 取消所有 goroutine
-	
+
 	c.connectionMutex.Lock()
 	defer c.connectionMutex.Unlock()
-	
+
 	if c.conn != nil {
 		log.Printf("关闭 gRPC 连接")
 		err := c.conn.Close()
