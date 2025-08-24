@@ -148,7 +148,7 @@ func MessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 func CreatePanelMessage() *discordgo.MessageSend {
 	embed := &discordgo.MessageEmbed{
 		Title:       "鉴赏小纸条投稿面板",
-		Description: "点击下方按钮开始投稿您的简评\n你的投稿通过后将会被发送到此频道以及对应帖子下方\n您没有必要在标题添加 `#` ，机器人会自动处理大字加粗",
+		Description: "## 测试版系统，本地运行尚未托管，如不可用是正常情况 \n点击下方按钮开始投稿您的简评\n你的投稿通过后将会被发送到此频道以及对应帖子下方\n您没有必要在标题添加 `#` ，机器人会自动处理大字加粗",
 		Color:       0x5865F2, // Discord Blurple
 	}
 	button := discordgo.Button{

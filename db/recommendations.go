@@ -145,9 +145,9 @@ func UpdateReactionCount(submissionID string, emojiName string, increment int) e
 	switch emojiName {
 	case "👍":
 		fieldToUpdate = "upvotes"
-	case "❓":
+	case "✅":
 		fieldToUpdate = "questions"
-	case "👎":
+	case "❌":
 		fieldToUpdate = "downvotes"
 	default:
 		return nil // Ignore other reactions

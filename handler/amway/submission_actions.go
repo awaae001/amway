@@ -75,8 +75,8 @@ func sendPublicationMessage(s *discordgo.Session, submission *model.Submission) 
 	}
 
 	s.MessageReactionAdd(publishChannelID, publishMsg.ID, "👍")
-	s.MessageReactionAdd(publishChannelID, publishMsg.ID, "❓")
-	s.MessageReactionAdd(publishChannelID, publishMsg.ID, "👎")
+	s.MessageReactionAdd(publishChannelID, publishMsg.ID, "✅")
+	s.MessageReactionAdd(publishChannelID, publishMsg.ID, "❌")
 
 	return publishMsg, nil
 }
