@@ -10,4 +10,5 @@ import (
 var AllCommands = []*discordgo.ApplicationCommand{
 	def.AmwayAdminCommand,
 	def.CreatePanelCommand,
+	def.LookupCommand,
 }

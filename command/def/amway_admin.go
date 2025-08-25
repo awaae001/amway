@@ -7,12 +7,18 @@ import (
 var AmwayAdminCommand = &discordgo.ApplicationCommand{
 	Name:        "amway_admin",
 	Description: "安利小纸条管理员命令",
+	NameLocalizations: &map[discordgo.Locale]string{
+		discordgo.ChineseCN: "安利管理",
+	},
 	Options: []*discordgo.ApplicationCommandOption{
 		{
 			Type:        discordgo.ApplicationCommandOptionString,
 			Name:        "action",
 			Description: "执行的操作",
-			Required:    true,
+			NameLocalizations: map[discordgo.Locale]string{
+				discordgo.ChineseCN: "操作",
+			},
+			Required: true,
 			Choices: []*discordgo.ApplicationCommandOptionChoice{
 				{
 					Name:  "打印",
@@ -26,13 +32,30 @@ var AmwayAdminCommand = &discordgo.ApplicationCommand{
 					Name:  "重新发送",
 					Value: "resend",
 				},
+				{
+					Name:  "解封",
+					Value: "unban",
+				},
 			},
 		},
 		{
 			Type:        discordgo.ApplicationCommandOptionString,
 			Name:        "input",
 			Description: "投稿ID",
-			Required:    true,
+			NameLocalizations: map[discordgo.Locale]string{
+				discordgo.ChineseCN: "输入",
+			},
+			Required: false,
+		},
+		{
+			Type:        discordgo.ApplicationCommandOptionString,
+			Name:        "user_id",
+			Description: "用户ID",
+			NameLocalizations: map[discordgo.Locale]string{
+				discordgo.ChineseCN: "用户",
+			},
+			Required:     false,
+			Autocomplete: true,
 		},
 	},
 }

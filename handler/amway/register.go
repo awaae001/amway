@@ -12,6 +12,7 @@ func RegisterHandlers() {
 
 	// 管理员命令处理器
 	handler.AddCommandHandler(def.AmwayAdminCommand.Name, AmwayAdminCommandHandler)
+	handler.AddCommandHandler(def.LookupCommand.Name, LookupCommandHandler)
 
 	// 新的两步投稿流程
 	handler.AddModalHandler("submission_link_modal", LinkSubmissionHandler)
