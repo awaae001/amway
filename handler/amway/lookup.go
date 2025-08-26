@@ -63,7 +63,7 @@ func LookupCommandHandler(s *discordgo.Session, i *discordgo.InteractionCreate) 
 		// 4. 检查结果
 		if len(filteredSubmissions) == 0 {
 			s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-				Content: utils.StringPtr(fmt.Sprintf("ℹ️ 未找到用户 <@%s> 的任何投稿。", targetUser.ID)),
+				Content: utils.StringPtr(fmt.Sprintf("ℹ️ 未找到用户 <@%s> 的任何投稿", targetUser.ID)),
 			})
 			return
 		}
@@ -88,7 +88,7 @@ func sendPaginatedSubmissions(s *discordgo.Session, i *discordgo.InteractionCrea
 
 	embed := &discordgo.MessageEmbed{
 		Title:       fmt.Sprintf("👤 %s 的投稿历史", targetUser.Username),
-		Description: fmt.Sprintf("共找到 %d 条投稿。正在显示第 %d / %d 页。", len(submissions), page+1, totalPages),
+		Description: fmt.Sprintf("共找到 %d 条投稿正在显示第 %d / %d 页", len(submissions), page+1, totalPages),
 		Color:       0x5865F2, // Discord Blurple
 		Fields:      []*discordgo.MessageEmbedField{},
 		Footer: &discordgo.MessageEmbedFooter{

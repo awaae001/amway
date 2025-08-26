@@ -9,6 +9,7 @@ import (
 func RegisterHandlers() {
 	handler.AddCommandHandler(def.CreatePanelCommand.Name, createPanelCommandHandler)
 	handler.AddComponentHandler("create_submission_button", CreateSubmissionButtonHandler)
+	handler.AddComponentHandler("how_to_submit_button", HowToSubmitButtonHandler)
 
 	// 管理员命令处理器
 	handler.AddCommandHandler(def.AmwayAdminCommand.Name, AmwayAdminCommandHandler)

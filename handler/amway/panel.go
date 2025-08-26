@@ -148,20 +148,26 @@ func MessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 func CreatePanelMessage() *discordgo.MessageSend {
 	embed := &discordgo.MessageEmbed{
 		Title:       "鉴赏小纸条投稿面板",
-		Description: "## 测试版系统，本地运行尚未托管，如不可用是正常情况 \n点击下方按钮开始投稿您的简评\n你的投稿通过后将会被发送到此频道以及对应帖子下方\n您没有必要在标题添加 `#` ，机器人会自动处理大字加粗",
+		Description: "点击下方按钮开始投稿您的简评\n你的投稿通过后将会被发送到此频道以及对应帖子下方\n您没有必要在标题添加 `#` ，机器人会自动处理大字加粗\n\n当你的历史投稿到达 5 条，即可申请 <@&1376078089024573570> 身份组",
 		Color:       0x5865F2, // Discord Blurple
 	}
-	button := discordgo.Button{
+	submissionButton := discordgo.Button{
 		Label:    "点击投稿",
 		Style:    discordgo.PrimaryButton,
 		CustomID: "create_submission_button",
 		Emoji:    &discordgo.ComponentEmoji{Name: "📝"},
 	}
 
+	howToButton := discordgo.Button{
+		Style:    discordgo.SecondaryButton,
+		CustomID: "how_to_submit_button",
+		Emoji:    &discordgo.ComponentEmoji{Name: "ℹ️"},
+	}
+
 	return &discordgo.MessageSend{
 		Embeds: []*discordgo.MessageEmbed{embed},
 		Components: []discordgo.MessageComponent{
-			discordgo.ActionsRow{Components: []discordgo.MessageComponent{button}},
+			discordgo.ActionsRow{Components: []discordgo.MessageComponent{submissionButton, howToButton}},
 		},
 	}
 }

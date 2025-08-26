@@ -4,7 +4,9 @@ import (
 	"amway/db"
 	"amway/model"
 	"amway/utils"
+	"bytes"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
@@ -17,7 +19,7 @@ func CreateSubmissionButtonHandler(s *discordgo.Session, i *discordgo.Interactio
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: "无法处理您的请求，请稍后再试。",
+				Content: "无法处理您的请求，请稍后再试",
 				Flags:   discordgo.MessageFlagsEphemeral,
 			},
 		})
@@ -81,7 +83,7 @@ func LinkSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate)
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: "请提供有效的链接。",
+				Content: "请提供有效的链接",
 				Flags:   discordgo.MessageFlagsEphemeral,
 			},
 		})
@@ -104,7 +106,7 @@ func LinkSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate)
 	postInfoText := utils.FormatDiscordPostInfo(postInfo)
 	embed := &discordgo.MessageEmbed{
 		Title:       "帖子信息确认",
-		Description: fmt.Sprintf("%s\n\n请确认以上信息无误，然后点击下方按钮继续填写安利内容。", postInfoText),
+		Description: fmt.Sprintf("%s\n\n请确认以上信息无误，然后点击下方按钮继续填写安利内容", postInfoText),
 		Color:       0x00FF00,
 	}
 
@@ -144,7 +146,7 @@ func ConfirmPostHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: "数据格式错误，请重新开始投稿流程。",
+				Content: "数据格式错误，请重新开始投稿流程",
 				Flags:   discordgo.MessageFlagsEphemeral,
 			},
 		})
@@ -207,7 +209,7 @@ func CancelSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreat
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseUpdateMessage,
 		Data: &discordgo.InteractionResponseData{
-			Content:    "投稿已取消。",
+			Content:    "投稿已取消",
 			Components: []discordgo.MessageComponent{},
 			Embeds:     []*discordgo.MessageEmbed{},
 		},
@@ -223,7 +225,7 @@ func ContentSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCrea
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: "数据格式错误，请重新开始投稿流程。",
+				Content: "数据格式错误，请重新开始投稿流程",
 				Flags:   discordgo.MessageFlagsEphemeral,
 			},
 		})
@@ -236,7 +238,7 @@ func ContentSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCrea
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: "您的投稿请求已过期，请重新发起。",
+				Content: "您的投稿请求已过期，请重新发起",
 				Flags:   discordgo.MessageFlagsEphemeral,
 			},
 		})
@@ -270,7 +272,7 @@ func ContentSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCrea
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: "标题和内容都是必填的，请重新提交。",
+				Content: "标题和内容都是必填的，请重新提交",
 				Flags:   discordgo.MessageFlagsEphemeral,
 			},
 		})
@@ -283,7 +285,7 @@ func ContentSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCrea
 
 	embed := &discordgo.MessageEmbed{
 		Title:       "投稿预览",
-		Description: "请检查您的安利内容，确认无误后，选择下方的提交方式。",
+		Description: "请检查您的安利内容，确认无误后，选择下方的提交方式",
 		Fields: []*discordgo.MessageEmbedField{
 			{Name: "安利标题", Value: recommendTitle},
 			{Name: "安利内容", Value: recommendContent},
@@ -333,7 +335,7 @@ func FinalSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: "处理您的请求时数据格式错误，请重新开始投稿。",
+				Content: "处理您的请求时数据格式错误，请重新开始投稿",
 				Flags:   discordgo.MessageFlagsEphemeral,
 			},
 		})
@@ -349,7 +351,7 @@ func FinalSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: "您的投稿请求已过期，请重新发起。",
+				Content: "您的投稿请求已过期，请重新发起",
 				Flags:   discordgo.MessageFlagsEphemeral,
 			},
 		})
@@ -394,7 +396,7 @@ func FinalSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate
 	)
 	if err != nil {
 		fmt.Printf("Error adding submission to database: %v\n", err)
-		errorContent := fmt.Sprintf("提交失败，请稍后再试。错误详情: %v", err)
+		errorContent := fmt.Sprintf("提交失败，请稍后再试错误详情: %v", err)
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{Content: &errorContent})
 		return
 	}
@@ -409,4 +411,68 @@ func FinalSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate
 		IsAnonymous:      isAnonymous,
 	}
 	SendSubmissionToReviewChannel(s, submission)
+}
+
+func HowToSubmitButtonHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	guideContent := `### 欢迎你！为了让每一份安利都能闪闪发光，也为了让审核流程更顺畅，请花几分钟阅读这份投稿指南
+
+## 第一步：找到你想要安利的帖子
+- 定位帖子：在 Discord 的任意公开频道中，找到你想要安利的原帖
+- 复制链接：右键点击该帖子（或长按，如果你在手机上），选择“复制消息链接”
+
+## 第二步：开始投稿
+- 点击按钮：回到我们的投稿面板，点击“点击投稿”按钮
+- 粘贴链接：在弹出的第一个窗口中，将你刚刚复制的帖子链接粘贴进去，然后点击提交
+
+## 第三步：填写安利内容
+- 确认信息：机器人会自动抓取帖子的基本信息，请你核对一遍，确保无误后点击“确认并继续”
+- 撰写安利：在第二个窗口中，你需要填写两个部分：
+    1. 安利标题：用一句话概括你的安利亮点，它会以加粗大字的形式显示
+   2. 安利内容：详细说明你的推荐理由，分享你的感受和见解我们鼓励真诚、有深度的分享，字数建议在 20 到 1024 字之间
+- 预览与提交：填写完毕后，你会看到最终的预览效果在这里，你可以选择**实名提交**或**匿名提交**
+
+## 重要须知
+- 关于匿名：选择匿名提交后，你的 Discord 用户名将不会在最终发布的安利中显示
+- 内容审核：所有提交的安利都会进入审核队列，由管理组进行审阅请确保你的内容友好、尊重原创，并且不包含不适宜的言论
+- 身份组奖励：当你的历史投稿累计达到 5 条并通过审核后，你将有资格申请专属的 <@&1376078089024573570> 身份组，以表彰你对社区的贡献！
+
+## 遇到问题？
+如果在投稿过程中遇到任何困难，或者对流程有任何疑问，<@&1337441650137366705> ，维护组会转接开发者
+
+感谢你的分享，期待看到你的精彩安利！`
+	embed := &discordgo.MessageEmbed{
+		Title:       "抚松安利小助手 · 投稿指南",
+		Description: guideContent,
+		Color:       0x5865F2, // Discord Blurple
+	}
+
+	responseData := &discordgo.InteractionResponseData{
+		Embeds: []*discordgo.MessageEmbed{embed},
+		Flags:  discordgo.MessageFlagsEphemeral,
+	}
+
+	image, err := os.ReadFile("src/bgimage.webp")
+	if err == nil {
+		embed.Image = &discordgo.MessageEmbedImage{
+			URL: "attachment://bgimage.webp",
+		}
+		responseData.Files = []*discordgo.File{
+			{
+				Name:        "bgimage.webp",
+				ContentType: "image/webp",
+				Reader:      bytes.NewReader(image),
+			},
+		}
+	} else {
+		fmt.Printf("Error reading image file, sending embed without image: %v\n", err)
+	}
+
+	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: responseData,
+	})
+
+	if err != nil {
+		fmt.Printf("Error sending how-to-submit embed: %v\n", err)
+	}
 }
