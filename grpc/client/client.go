@@ -111,8 +111,8 @@ func (c *GRPCClient) Register() error {
 	// 注册请求
 	req := &registryPb.RegisterRequest{
 		ApiKey:   c.token,
-		Address:  c.clientName,           // 使用客户端名称作为地址
-		Services: []string{c.clientName}, // 注册 recommendation 服务
+		Address:  c.clientName,                                                    // 使用客户端名称作为地址
+		Services: []string{fmt.Sprintf("%s.RecommendationService", c.clientName)}, // 注册 recommendation 服务
 	}
 
 	resp, err := c.registryClient.Register(ctx, req)
@@ -146,7 +146,7 @@ func (c *GRPCClient) EstablishConnection() error {
 		MessageType: &registryPb.ConnectionMessage_Register{
 			Register: &registryPb.ConnectionRegister{
 				ApiKey:   c.token,
-				Services: []string{fmt.Sprintf("%s.recommendation.RecommendationService", c.clientName)},
+				Services: []string{fmt.Sprintf("%s.RecommendationService", c.clientName)},
 			},
 		},
 	}
@@ -201,7 +201,7 @@ func (c *GRPCClient) GetRecommendation(id string) (*recommendationPb.Recommendat
 	return c.recommendationClient.GetRecommendation(ctx, req)
 }
 
-func (c *GRPCClient) GetRecommendationsByAuthor(authorId string, guildId int64) (*recommendationPb.GetRecommendationsByAuthorResponse, error) {
+func (c *GRPCClient) GetRecommendationsByAuthor(authorId string, guildId string) (*recommendationPb.GetRecommendationsByAuthorResponse, error) {
 	if !c.IsConnected() {
 		return nil, fmt.Errorf("未连接到服务器")
 	}

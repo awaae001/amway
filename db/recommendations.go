@@ -77,6 +77,11 @@ func AddSubmissionV2(userID, url, recommendTitle, recommendContent, originalTitl
 
 // UpdateSubmissionStatus updates the status of a submission in recommendations table.
 func UpdateSubmissionStatus(submissionID, status string) error {
+	return UpdateSubmissionReviewer(submissionID, status, "")
+}
+
+// UpdateSubmissionReviewer updates the status and reviewer of a submission.
+func UpdateSubmissionReviewer(submissionID, status, reviewerID string) error {
 	var isBlocked int
 	switch status {
 	case "approved":
@@ -89,7 +94,7 @@ func UpdateSubmissionStatus(submissionID, status string) error {
 		isBlocked = 0
 	}
 
-	_, err := DB.Exec("UPDATE recommendations SET is_blocked = ? WHERE id = ?", isBlocked, submissionID)
+	_, err := DB.Exec("UPDATE recommendations SET is_blocked = ?, reviewer_id = ? WHERE id = ?", isBlocked, reviewerID, submissionID)
 	return err
 }
 

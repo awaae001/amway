@@ -7,11 +7,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	recommendationPb "amway/grpc/gen/recommendation"
+	registryPb "amway/grpc/gen/registry"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
-	registryPb "amway/grpc/gen/registry"
-	recommendationPb "amway/grpc/gen/recommendation"
 )
 
 // 状态管理方法
@@ -71,10 +72,8 @@ func (c *GRPCClient) connectWithRetry() error {
 
 func (c *GRPCClient) doConnect() error {
 	// 创建连接
-	conn, err := grpc.Dial(c.serverAddress,
+	conn, err := grpc.NewClient(c.serverAddress,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(),
-		grpc.WithTimeout(10*time.Second),
 	)
 	if err != nil {
 		return fmt.Errorf("无法连接到 gRPC 服务器: %v", err)

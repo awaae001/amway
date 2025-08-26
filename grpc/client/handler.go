@@ -100,10 +100,14 @@ func (c *GRPCClient) handleForwardRequest(stream registryPb.RegistryService_Esta
 	ctx := context.Background()
 
 	// 根据方法路径路由到相应的服务
+	// 根据方法路径路由到相应的服务
+	methodGetRecommendation := fmt.Sprintf("/%s.RecommendationService/GetRecommendation", c.clientName)
+	methodGetRecommendationsByAuthor := fmt.Sprintf("/%s.RecommendationService/GetRecommendationsByAuthor", c.clientName)
+
 	switch req.MethodPath {
-	case "/recommendation.RecommendationService/GetRecommendation":
+	case methodGetRecommendation:
 		responsePayload, statusCode, errorMessage = c.handleGetRecommendation(ctx, req.Payload)
-	case "/recommendation.RecommendationService/GetRecommendationsByAuthor":
+	case methodGetRecommendationsByAuthor:
 		responsePayload, statusCode, errorMessage = c.handleGetRecommendationsByAuthor(ctx, req.Payload)
 	default:
 		statusCode = 404

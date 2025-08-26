@@ -167,7 +167,7 @@ func ApproveSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCrea
 		}
 
 		// Update submission status
-		err = db.UpdateSubmissionStatus(submissionID, "approved")
+		err = db.UpdateSubmissionReviewer(submissionID, "approved", i.Member.User.ID)
 		if err != nil {
 			fmt.Printf("Error updating submission status: %v\n", err)
 			s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
@@ -209,7 +209,7 @@ func ApproveSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCrea
 func RejectSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	submissionID := strings.Split(i.MessageComponentData().CustomID, ":")[1]
 
-	err := db.UpdateSubmissionStatus(submissionID, "rejected")
+	err := db.UpdateSubmissionReviewer(submissionID, "rejected", i.Member.User.ID)
 	if err != nil {
 		fmt.Printf("Error updating submission status: %v\n", err)
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -243,7 +243,7 @@ func RejectSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreat
 func IgnoreSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	submissionID := strings.Split(i.MessageComponentData().CustomID, ":")[1]
 
-	err := db.UpdateSubmissionStatus(submissionID, "ignored")
+	err := db.UpdateSubmissionReviewer(submissionID, "ignored", i.Member.User.ID)
 	if err != nil {
 		fmt.Printf("Error updating submission status: %v\n", err)
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -306,7 +306,7 @@ func BanSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) 
 	}
 
 	// Update submission status
-	err = db.UpdateSubmissionStatus(submissionID, "rejected")
+	err = db.UpdateSubmissionReviewer(submissionID, "rejected", i.Member.User.ID)
 	if err != nil {
 		fmt.Printf("Error updating submission status: %v\n", err)
 	}

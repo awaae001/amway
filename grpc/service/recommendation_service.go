@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"strconv"
 
 	"amway/db"
 	recommendationPb "amway/grpc/gen/recommendation"
@@ -28,7 +27,7 @@ func (s *RecommendationServiceImpl) GetRecommendation(ctx context.Context, req *
 	}
 
 	// Query the database for the submission
-	submission, err := db.GetSubmission(req.Id)
+	submission, err := db.GetSubmissionWithDeleted(req.Id)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "查询数据库失败: %v", err)
 	}
@@ -52,15 +51,12 @@ func (s *RecommendationServiceImpl) GetRecommendationsByAuthor(ctx context.Conte
 		return nil, status.Error(codes.InvalidArgument, "作者 ID 不能为空")
 	}
 
-	if req.GuildId == 0 {
+	if req.GuildId == "" {
 		return nil, status.Error(codes.InvalidArgument, "服务器 ID 不能为空")
 	}
 
-	// Convert guild_id from int64 to string for database query
-	guildIdStr := strconv.FormatInt(req.GuildId, 10)
-
 	// Query the database for submissions by author
-	submissions, err := db.GetSubmissionsByAuthor(req.AuthorId, guildIdStr)
+	submissions, err := db.GetSubmissionsByAuthor(req.AuthorId, req.GuildId)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "查询数据库失败: %v", err)
 	}

@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package recommendation;
 
-option go_package = "amway/grpc/gen/recommendation";
+option go_package = "grpc/gen/recommendation";
 
 // Service Definition
 service RecommendationService {
@@ -25,8 +25,16 @@ message RecommendationSlip {
   int32 downvotes = 8;   // 获得的“点踩”数
   int64 created_at = 9;  // 创建时间戳 (Unix timestamp)
   string reviewer_id = 10; // 审定该小纸条的管理员 ID
-  bool is_blocked = 11;  // 标记该小纸条是否已被屏蔽
-  int64 guild_id = 12; // 小纸条所属的 Discord 服务器 ID
+  int32 is_blocked = 11;  // 标记该小纸条是否已被屏蔽 (0: pending, 1: approved, 2: rejected, 3: ignored)
+  string guild_id = 12; // 小纸条所属的 Discord 服务器 ID
+  string original_title = 13;
+  string original_author = 14;
+  string recommend_title = 15;
+  string recommend_content = 16;
+  string original_post_timestamp = 17;
+  string final_amway_message_id = 18;
+  bool is_deleted = 19;
+  bool is_anonymous = 20;
 }
 
 message GetRecommendationRequest {
@@ -35,7 +43,7 @@ message GetRecommendationRequest {
 
 message GetRecommendationsByAuthorRequest {
   string author_id = 1;
-  int64 guild_id = 2;
+  string guild_id = 2;
 }
 
 message GetRecommendationsByAuthorResponse {
