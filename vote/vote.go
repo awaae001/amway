@@ -50,6 +50,19 @@ func (s *Session) AddVote(vote Vote) {
 	s.Votes = append(s.Votes, vote)
 }
 
+// RemoveVote removes a vote from a session by voterID. Returns true if a vote was removed.
+func (s *Session) RemoveVote(voterID string) bool {
+	originalVoteCount := len(s.Votes)
+	var newVotes []Vote
+	for _, v := range s.Votes {
+		if v.VoterID != voterID {
+			newVotes = append(newVotes, v)
+		}
+	}
+	s.Votes = newVotes
+	return len(s.Votes) < originalVoteCount
+}
+
 const voteDir = "data/votes"
 
 // Manager handles all vote-related operations.

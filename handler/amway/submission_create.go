@@ -166,6 +166,79 @@ func ConfirmPostHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	}
 	cacheID := utils.AddToCache(cacheData)
 
+	components := []discordgo.MessageComponent{
+		discordgo.ActionsRow{
+			Components: []discordgo.MessageComponent{
+				discordgo.Button{
+					Label:    "是，发送到原帖",
+					Style:    discordgo.SuccessButton,
+					CustomID: fmt.Sprintf("reply_choice:%s:true", cacheID),
+					Emoji:    &discordgo.ComponentEmoji{Name: "✅"},
+				},
+				discordgo.Button{
+					Label:    "否，仅投稿",
+					Style:    discordgo.PrimaryButton,
+					CustomID: fmt.Sprintf("reply_choice:%s:false", cacheID),
+					Emoji:    &discordgo.ComponentEmoji{Name: "📝"},
+				},
+				discordgo.Button{
+					Label:    "取消",
+					Style:    discordgo.DangerButton,
+					CustomID: "cancel_submission",
+					Emoji:    &discordgo.ComponentEmoji{Name: "❌"},
+				},
+			},
+		},
+	}
+
+	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseUpdateMessage,
+		Data: &discordgo.InteractionResponseData{
+			Content:    "请选择：是否将您的安利作为回复发送到原帖下方？",
+			Flags:      discordgo.MessageFlagsEphemeral,
+			Components: components,
+			Embeds:     i.Message.Embeds,
+		},
+	})
+
+	if err != nil {
+		fmt.Printf("Error updating message for reply choice: %v\n", err)
+	}
+}
+
+func ReplyChoiceHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	customID := i.MessageComponentData().CustomID
+	parts := strings.Split(customID, ":")
+	if len(parts) < 3 {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "数据格式错误，请重新开始投稿流程",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+		return
+	}
+
+	cacheID := parts[1]
+	replyToOriginalStr := parts[2]
+	replyToOriginal := replyToOriginalStr == "true"
+
+	cacheData, found := utils.GetFromCache(cacheID)
+	if !found {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "您的投稿请求已过期，请重新发起",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+		return
+	}
+
+	cacheData.ReplyToOriginal = replyToOriginal
+	utils.UpdateCache(cacheID, cacheData)
+
 	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseModal,
 		Data: &discordgo.InteractionResponseData{
@@ -201,10 +274,9 @@ func ConfirmPostHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	})
 
 	if err != nil {
-		fmt.Printf("Error creating content modal: %v\n", err)
+		fmt.Printf("Error creating content modal after reply choice: %v\n", err)
 	}
 }
-
 func CancelSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseUpdateMessage,
@@ -245,12 +317,8 @@ func ContentSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCrea
 		return
 	}
 
-	emptyComponents := []discordgo.MessageComponent{}
-	s.ChannelMessageEditComplex(&discordgo.MessageEdit{
-		Channel:    cacheData.EphChannelID,
-		ID:         cacheData.EphMessageID,
-		Components: &emptyComponents,
-	})
+	// This message edit is no longer necessary as the final submission
+	// will clean up all the ephemeral messages.
 
 	var recommendTitle, recommendContent string
 	for _, component := range data.Components {
@@ -383,22 +451,35 @@ func FinalSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate
 	}
 	utils.RemoveFromCache(cacheID)
 
-	content := "🍻您的安利投稿已成功提交，正在等待审核"
+	// Acknowledge the interaction with a generic ephemeral message.
+	// This message will be updated almost instantly, so the user will likely not see it.
 	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseUpdateMessage,
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
-			Content:    content,
-			Components: []discordgo.MessageComponent{},
-			Embeds:     []*discordgo.MessageEmbed{},
+			Content: "正在处理您的提交...",
+			Flags:   discordgo.MessageFlagsEphemeral,
 		},
 	})
 	if err != nil {
-		fmt.Printf("Error sending final response: %v\n", err)
-		// As a fallback, try to edit the original interaction
+		fmt.Printf("Error sending initial final response: %v\n", err)
+	}
+
+	// Now, edit the *original* ephemeral message to show the final status and remove components.
+	finalContent := "🍻您的安利投稿已成功提交，正在等待审核"
+	emptyComponents := []discordgo.MessageComponent{}
+	_, err = s.ChannelMessageEditComplex(&discordgo.MessageEdit{
+		Channel:    cacheData.EphChannelID,
+		ID:         cacheData.EphMessageID,
+		Content:    &finalContent,
+		Components: &emptyComponents,
+		Embeds:     &[]*discordgo.MessageEmbed{},
+	})
+	if err != nil {
+		fmt.Printf("Error editing original ephemeral message with final status: %v\n", err)
+		// Fallback to editing the interaction response if editing the original message fails
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-			Content: &content,
+			Content: &finalContent,
 		})
-		return
 	}
 
 	guildID := i.GuildID

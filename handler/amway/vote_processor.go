@@ -15,7 +15,7 @@ import (
 )
 
 // processVote is the core logic for handling a vote submission.
-func processVote(s *discordgo.Session, i *discordgo.InteractionCreate, submissionID, voterID string, voteType vote.VoteType, reason string) {
+func processVote(s *discordgo.Session, i *discordgo.InteractionCreate, submissionID, voterID string, voteType vote.VoteType, reason string, replyToOriginal bool) {
 	voteManager, err := vote.NewManager()
 	if err != nil {
 		log.Printf("Failed to create vote manager: %v", err)
@@ -42,7 +42,7 @@ func processVote(s *discordgo.Session, i *discordgo.InteractionCreate, submissio
 	}
 
 	updateReviewMessage(s, i, session)
-	processVoteResult(s, i, session)
+	processVoteResult(s, i, session, replyToOriginal)
 }
 
 // updateReviewMessage updates the review message with the current voting status.
@@ -106,7 +106,7 @@ func updateReviewMessage(s *discordgo.Session, i *discordgo.InteractionCreate, s
 }
 
 // processVoteResult checks the votes and takes final action if needed.
-func processVoteResult(s *discordgo.Session, i *discordgo.InteractionCreate, session *vote.Session) {
+func processVoteResult(s *discordgo.Session, i *discordgo.InteractionCreate, session *vote.Session, replyToOriginal bool) {
 	if len(session.Votes) < 2 {
 		return // Not enough votes to make a decision yet
 	}
@@ -178,15 +178,24 @@ func processVoteResult(s *discordgo.Session, i *discordgo.InteractionCreate, ses
 
 	oldStatus := submission.Status
 	// Only proceed if the final status is different from the old status
-	if finalStatus != oldStatus {
-		handleStatusChange(s, submission, finalStatus, reviewerID)
+	var rejectionReasons []string
+	if finalStatus == "rejected" {
+		for _, v := range session.Votes {
+			if v.Type == vote.Reject && v.Reason != "" {
+				rejectionReasons = append(rejectionReasons, v.Reason)
+			}
+		}
 	}
 
-	finalizeReviewMessage(s, i, session.SubmissionID, finalStatus)
+	if finalStatus != oldStatus {
+		handleStatusChange(s, submission, finalStatus, reviewerID, replyToOriginal)
+	}
+
+	finalizeReviewMessage(s, i, session.SubmissionID, finalStatus, rejectionReasons)
 }
 
 // handleStatusChange processes the consequences of a submission's final status.
-func handleStatusChange(s *discordgo.Session, submission *model.Submission, finalStatus, reviewerID string) {
+func handleStatusChange(s *discordgo.Session, submission *model.Submission, finalStatus, reviewerID string, replyToOriginal bool) {
 	// Update user stats based on the new status
 	switch finalStatus {
 	case "featured":
@@ -214,22 +223,63 @@ func handleStatusChange(s *discordgo.Session, submission *model.Submission, fina
 			if err := db.UpdateFinalAmwayMessageID(submission.ID, publishMsg.ID); err != nil {
 				log.Printf("Error updating final amway message ID for submission %s: %v", submission.ID, err)
 			}
-			sendNotificationToOriginalPost(s, submission, publishMsg)
+			if replyToOriginal {
+				sendNotificationToOriginalPost(s, submission, publishMsg)
+			}
 		}
 	}
 }
 
 // finalizeReviewMessage updates the original review message to show the final result.
-func finalizeReviewMessage(s *discordgo.Session, i *discordgo.InteractionCreate, submissionID, finalStatus string) {
+func finalizeReviewMessage(s *discordgo.Session, i *discordgo.InteractionCreate, submissionID, finalStatus string, reasons []string) {
 	finalEmbed := &discordgo.MessageEmbed{
 		Title:       "✅ 投票结束",
 		Description: fmt.Sprintf("对投稿 `%s` 的投票已完成。\n\n**最终结果:** `%s`", submissionID, finalStatus),
 		Color:       0x5865F2, // Discord Blurple
 	}
 
+	var components []discordgo.MessageComponent
+	if finalStatus == "rejected" && len(reasons) > 0 {
+		// Create a button for each reason, spread across multiple rows if necessary
+		reasonButtons := []discordgo.MessageComponent{}
+		for idx := range reasons {
+			reasonButtons = append(reasonButtons, discordgo.Button{
+				Label:    fmt.Sprintf("理由%d", idx+1),
+				Style:    discordgo.SecondaryButton,
+				CustomID: fmt.Sprintf("select_reason:%s:%d", submissionID, idx),
+			})
+		}
+
+		// Group buttons into ActionRows (max 5 per row)
+		const maxButtonsPerRow = 5
+		for i := 0; i < len(reasonButtons); i += maxButtonsPerRow {
+			end := i + maxButtonsPerRow
+			if end > len(reasonButtons) {
+				end = len(reasonButtons)
+			}
+			components = append(components, discordgo.ActionsRow{
+				Components: reasonButtons[i:end],
+			})
+		}
+
+		// Add the confirmation button in a new row
+		components = append(components, discordgo.ActionsRow{
+			Components: []discordgo.MessageComponent{
+				discordgo.Button{
+					Label:    "发送私信通知",
+					Style:    discordgo.PrimaryButton,
+					CustomID: "send_rejection_dm:" + submissionID,
+				},
+			},
+		})
+	}
+
+	embeds := i.Message.Embeds
+	embeds = append(embeds, finalEmbed)
+
 	_, err := s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-		Embeds:     &[]*discordgo.MessageEmbed{i.Message.Embeds[0], finalEmbed}, // Keep original submission info
-		Components: &[]discordgo.MessageComponent{},                             // Remove buttons
+		Embeds:     &embeds,
+		Components: &components,
 	})
 	if err != nil {
 		log.Printf("Failed to finalize review message for submission %s: %v", submissionID, err)

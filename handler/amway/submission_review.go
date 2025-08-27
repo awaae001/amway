@@ -72,6 +72,12 @@ func SendSubmissionToReviewChannel(s *discordgo.Session, submission *model.Submi
 					CustomID: "vote:feature:" + submission.ID,
 					Emoji:    &discordgo.ComponentEmoji{Name: "🌟"},
 				},
+				discordgo.Button{
+					Label:    "悔票",
+					Style:    discordgo.SecondaryButton,
+					CustomID: "vote:remove:" + submission.ID,
+					Emoji:    &discordgo.ComponentEmoji{Name: "🗑️"},
+				},
 			},
 		},
 	}

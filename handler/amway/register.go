@@ -19,10 +19,15 @@ func RegisterHandlers() {
 	handler.AddModalHandler("submission_link_modal", LinkSubmissionHandler)
 	handler.AddComponentHandler("confirm_post", ConfirmPostHandler)
 	handler.AddComponentHandler("cancel_submission", CancelSubmissionHandler)
+	handler.AddComponentHandlerPrefix("reply_choice", ReplyChoiceHandler)
 	handler.AddModalHandler("submission_content_modal", ContentSubmissionHandler)
 	handler.AddComponentHandler("final_submit", FinalSubmissionHandler)
 
 	// 审核相关处理器
 	handler.AddComponentHandlerPrefix("vote:", VoteHandler)
 	handler.AddModalHandler("modal_reject", ModalRejectHandler)
+
+	// 私信通知相关处理器
+	handler.AddComponentHandlerPrefix("select_reason:", SelectReasonHandler)
+	handler.AddComponentHandlerPrefix("send_rejection_dm:", SendRejectionDMHandler)
 }
