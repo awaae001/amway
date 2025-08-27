@@ -24,4 +24,5 @@ func RegisterHandlers() {
 
 	// 审核相关处理器
 	handler.AddComponentHandlerPrefix("vote:", VoteHandler)
+	handler.AddModalHandler("modal_reject", ModalRejectHandler)
 }

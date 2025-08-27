@@ -28,6 +28,7 @@ const (
 type Vote struct {
 	VoterID   string    `json:"voter_id"`
 	Type      VoteType  `json:"type"`
+	Reason    string    `json:"reason,omitempty"`
 	Timestamp time.Time `json:"timestamp"`
 }
 
