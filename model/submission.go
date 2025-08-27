@@ -19,4 +19,5 @@ type Submission struct {
 	Questions             int
 	Downvotes             int
 	IsAnonymous           bool
+	Status                string
 }

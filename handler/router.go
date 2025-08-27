@@ -7,9 +7,10 @@ import (
 )
 
 var (
-	commandHandlers   = make(map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate))
-	componentHandlers = make(map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate))
-	modalHandlers     = make(map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate))
+	commandHandlers          = make(map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate))
+	componentHandlers        = make(map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate))
+	componentHandlerPrefixes = make(map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate))
+	modalHandlers            = make(map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate))
 )
 
 // AddCommandHandler registers a handler for a slash command.
@@ -20,6 +21,11 @@ func AddCommandHandler(name string, handler func(s *discordgo.Session, i *discor
 // AddComponentHandler registers a handler for a message component.
 func AddComponentHandler(customID string, handler func(s *discordgo.Session, i *discordgo.InteractionCreate)) {
 	componentHandlers[customID] = handler
+}
+
+// AddComponentHandlerPrefix registers a handler for a message component with a specific prefix.
+func AddComponentHandlerPrefix(prefix string, handler func(s *discordgo.Session, i *discordgo.InteractionCreate)) {
+	componentHandlerPrefixes[prefix] = handler
 }
 
 // AddModalHandler registers a handler for a modal submission.
@@ -42,6 +48,13 @@ func OnInteractionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 
 		if handler, ok := componentHandlers[handlerKey]; ok {
 			handler(s, i)
+			return
+		}
+		for prefix, handler := range componentHandlerPrefixes {
+			if strings.HasPrefix(customID, prefix) {
+				handler(s, i)
+				return
+			}
 		}
 	case discordgo.InteractionModalSubmit:
 		customID := i.ModalSubmitData().CustomID

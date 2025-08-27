@@ -18,7 +18,7 @@ var dg *discordgo.Session
 func Start() {
 	err := config.LoadConfig()
 	if err != nil {
-		log.Printf("Error loading config:", err)
+		log.Printf("Error loading config: %v", err)
 		return
 	}
 
@@ -28,7 +28,7 @@ func Start() {
 	// Create a new Discord session using the provided bot token.
 	dg, err = discordgo.New("Bot " + config.Cfg.Token)
 	if err != nil {
-		log.Printf("error creating Discord session,", err)
+		log.Printf("error creating Discord session, %v", err)
 		return
 	}
 
@@ -36,7 +36,7 @@ func Start() {
 
 	err = dg.Open()
 	if err != nil {
-		log.Printf("error opening connection,", err)
+		log.Printf("error opening connection, %v", err)
 		return
 	}
 

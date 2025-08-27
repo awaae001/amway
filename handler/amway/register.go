@@ -23,9 +23,5 @@ func RegisterHandlers() {
 	handler.AddComponentHandler("final_submit", FinalSubmissionHandler)
 
 	// 审核相关处理器
-	handler.AddComponentHandler("approve_submission", ApproveSubmissionHandler)
-	handler.AddComponentHandler("reject_submission", RejectSubmissionHandler)
-	handler.AddComponentHandler("ignore_submission", IgnoreSubmissionHandler)
-	handler.AddComponentHandler("ban_submission", BanSubmissionHandler)
-	handler.AddComponentHandler("delete_submission", DeleteSubmissionHandler)
+	handler.AddComponentHandlerPrefix("vote:", VoteHandler)
 }

@@ -5,6 +5,7 @@ import (
 	"amway/db"
 	"amway/model"
 	"amway/utils"
+	"amway/vote"
 	"fmt"
 	"log"
 	"strings"
@@ -13,9 +14,210 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-// stringPtr is a helper function to get a pointer to a string.
-func stringPtr(s string) *string {
-	return &s
+// VoteHandler handles all voting interactions.
+func VoteHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	// 1. Parse interaction data
+	parts := strings.Split(i.MessageComponentData().CustomID, ":")
+	if len(parts) != 3 {
+		return // Invalid custom ID format
+	}
+	voteType := vote.VoteType(parts[1])
+	submissionID := parts[2]
+	voterID := i.Member.User.ID
+
+	// Immediately acknowledge the interaction to prevent timeout
+	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredMessageUpdate,
+	})
+	if err != nil {
+		fmt.Printf("Error sending deferred response: %v\n", err)
+		return
+	}
+
+	go func() {
+		// 2. Initialize Vote Manager
+		voteManager, err := vote.NewManager()
+		if err != nil {
+			log.Printf("Failed to create vote manager: %v", err)
+			return
+		}
+
+		// 3. Load or create a session
+		session, err := voteManager.LoadSession(submissionID)
+		if err != nil {
+			log.Printf("Failed to load vote session for submission %s: %v", submissionID, err)
+			return
+		}
+
+		// 4. Add the new vote
+		newVote := vote.Vote{
+			VoterID:   voterID,
+			Type:      voteType,
+			Timestamp: time.Now(),
+		}
+		session.AddVote(newVote)
+
+		// 5. Save the session
+		if err := voteManager.SaveSession(session); err != nil {
+			log.Printf("Failed to save vote session for submission %s: %v", submissionID, err)
+			return
+		}
+
+		// 6. Analyze votes and update message (implementation to follow)
+		updateReviewMessage(s, i, session)
+
+		// 7. Process the final result if conditions are met
+		processVoteResult(s, i, session)
+	}()
+}
+
+// updateReviewMessage updates the review message with the current voting status.
+func updateReviewMessage(s *discordgo.Session, i *discordgo.InteractionCreate, session *vote.Session) {
+	// TODO: Implement the logic to show who voted for what.
+	// For now, just a simple confirmation.
+
+	originalEmbeds := i.Message.Embeds
+
+	var voteSummary string
+	for _, v := range session.Votes {
+		voteSummary += fmt.Sprintf("<@%s>投了 `%s`\n", v.VoterID, v.Type)
+	}
+
+	voteEmbed := &discordgo.MessageEmbed{
+		Title:       "当前投票状态",
+		Description: voteSummary,
+		Color:       0x00BFFF, // Deep sky blue
+	}
+
+	updatedEmbeds := append(originalEmbeds, voteEmbed)
+
+	// Check if this is the first vote. If so, create a new embed. If not, edit the existing one.
+	var existingVoteEmbedIndex = -1
+	for idx, embed := range originalEmbeds {
+		if embed.Title == "当前投票状态" {
+			existingVoteEmbedIndex = idx
+			break
+		}
+	}
+
+	if existingVoteEmbedIndex != -1 {
+		// Update existing vote embed
+		originalEmbeds[existingVoteEmbedIndex] = voteEmbed
+		updatedEmbeds = originalEmbeds
+	} else {
+		// Append new vote embed
+		updatedEmbeds = append(originalEmbeds, voteEmbed)
+	}
+
+	s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+		Embeds: &updatedEmbeds,
+	})
+}
+
+// processVoteResult checks the votes and takes final action if needed.
+func processVoteResult(s *discordgo.Session, i *discordgo.InteractionCreate, session *vote.Session) {
+	if len(session.Votes) < 2 {
+		return // Not enough votes to make a decision yet
+	}
+
+	voteCounts := make(map[vote.VoteType]int)
+	for _, v := range session.Votes {
+		voteCounts[v.Type]++
+		// Feature vote also counts as a Pass vote
+		if v.Type == vote.Feature {
+			voteCounts[vote.Pass]++
+		}
+	}
+
+	var finalStatus string
+	var reviewerID string // For now, we'll just log the last voter.
+
+	// Check for a two-vote consensus
+	for voteType, count := range voteCounts {
+		if count >= 2 {
+			reviewerID = session.Votes[len(session.Votes)-1].VoterID
+			switch voteType {
+			case vote.Pass:
+				// If we have 2 or more feature votes, the final status is "featured"
+				if voteCounts[vote.Feature] >= 2 {
+					finalStatus = "featured"
+				} else {
+					finalStatus = "approved"
+				}
+			case vote.Reject:
+				finalStatus = "rejected"
+			case vote.Ban:
+				finalStatus = "banned" // We'll handle the actual ban action below
+			}
+			break // A decision has been reached
+		}
+	}
+
+	if finalStatus == "" && len(session.Votes) == 2 {
+		hasPass := voteCounts[vote.Pass] > 0
+		hasReject := voteCounts[vote.Reject] > 0
+		hasBan := voteCounts[vote.Ban] > 0
+
+		if (hasPass && hasReject) || (hasPass && hasBan) {
+			// Conflict, wait for a third vote
+			return
+		}
+	}
+
+	if finalStatus == "" {
+		return // No consensus yet, or conflict with more than 2 voters
+	}
+
+	submission, err := db.GetSubmission(session.SubmissionID)
+	if err != nil {
+		log.Printf("Could not get submission %s for final processing: %v", session.SubmissionID, err)
+		return
+	}
+
+	// Update user stats
+	switch finalStatus {
+	case "approved":
+		// No change in stats for a simple approval
+	case "featured":
+		db.IncrementFeaturedCount(submission.UserID)
+	case "rejected":
+		db.IncrementRejectedCount(submission.UserID)
+	case "banned":
+		db.BanUser(submission.UserID, "Banned through submission voting.")
+		db.IncrementRejectedCount(submission.UserID) // Banned submissions are also considered rejected
+		finalStatus = "rejected"                     // The submission status itself is 'rejected'
+	}
+
+	// Update submission status in the database
+	if err := db.UpdateSubmissionReviewer(session.SubmissionID, finalStatus, reviewerID); err != nil {
+		log.Printf("Failed to update submission status for %s: %v", session.SubmissionID, err)
+		return
+	}
+
+	// If approved or featured, send to the publication channel
+	if finalStatus == "approved" || finalStatus == "featured" {
+		publishMsg, err := sendPublicationMessage(s, submission)
+		if err != nil {
+			log.Printf("Error sending publication message for submission %s: %v", session.SubmissionID, err)
+		} else {
+			if err := db.UpdateFinalAmwayMessageID(session.SubmissionID, publishMsg.ID); err != nil {
+				log.Printf("Error updating final amway message ID for submission %s: %v", session.SubmissionID, err)
+			}
+			sendNotificationToOriginalPost(s, submission, publishMsg)
+		}
+	}
+
+	// --- Finalize Review Message ---
+	finalEmbed := &discordgo.MessageEmbed{
+		Title:       "✅ 投票结束",
+		Description: fmt.Sprintf("对投稿 `%s` 的投票已完成。\n\n**最终结果:** `%s`", session.SubmissionID, finalStatus),
+		Color:       0x5865F2, // Discord Blurple
+	}
+
+	s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+		Embeds:     &[]*discordgo.MessageEmbed{i.Message.Embeds[0], finalEmbed}, // Keep original submission info
+		Components: &[]discordgo.MessageComponent{},                             // Remove buttons
+	})
 }
 
 // sendPublicationMessage sends the approved submission to the publication channel.
@@ -140,222 +342,4 @@ func sendNotificationToOriginalPost(s *discordgo.Session, submission *model.Subm
 			log.Printf("Error sending notification to original post for submission %s: %v", submission.ID, err)
 		}
 	}
-}
-
-// ApproveSubmissionHandler handles approval of submissions
-func ApproveSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	// Immediately acknowledge the interaction to avoid timeout
-	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseDeferredMessageUpdate,
-	})
-	if err != nil {
-		fmt.Printf("Error sending deferred response: %v\n", err)
-		return
-	}
-
-	submissionID := strings.Split(i.MessageComponentData().CustomID, ":")[1]
-
-	go func() {
-		// Get submission details
-		submission, err := db.GetSubmission(submissionID)
-		if err != nil {
-			fmt.Printf("Error getting submission: %v\n", err)
-			s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-				Content: stringPtr("无法找到该投稿 "),
-			})
-			return
-		}
-
-		// Update submission status
-		err = db.UpdateSubmissionReviewer(submissionID, "approved", i.Member.User.ID)
-		if err != nil {
-			fmt.Printf("Error updating submission status: %v\n", err)
-			s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-				Content: stringPtr("更新状态失败 "),
-			})
-			return
-		}
-
-		// Send to publish channel
-		publishMsg, err := sendPublicationMessage(s, submission)
-		if err != nil {
-			fmt.Printf("Error sending publication message for submission %s: %v\n", submissionID, err)
-		} else {
-			// Update submission with the final message ID
-			if err := db.UpdateFinalAmwayMessageID(submissionID, publishMsg.ID); err != nil {
-				fmt.Printf("Error updating final amway message ID for submission %s: %v\n", submissionID, err)
-			}
-			// Send a notification to the original post
-			sendNotificationToOriginalPost(s, submission, publishMsg)
-		}
-
-		// Update the review message
-		originalEmbeds := i.Message.Embeds
-		approvedEmbed := &discordgo.MessageEmbed{
-			Title:       "审核结果",
-			Description: fmt.Sprintf("**审核员:** <@%s>\n**状态:** ✅ 已通过并发布", i.Member.User.ID),
-			Color:       0x00FF00,
-		}
-		updatedEmbeds := append(originalEmbeds, approvedEmbed)
-
-		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-			Embeds:     &updatedEmbeds,
-			Components: &[]discordgo.MessageComponent{}, // Remove buttons
-		})
-	}()
-}
-
-// RejectSubmissionHandler handles rejection of submissions
-func RejectSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	submissionID := strings.Split(i.MessageComponentData().CustomID, ":")[1]
-
-	err := db.UpdateSubmissionReviewer(submissionID, "rejected", i.Member.User.ID)
-	if err != nil {
-		fmt.Printf("Error updating submission status: %v\n", err)
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "更新状态失败 ",
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
-		return
-	}
-
-	originalEmbeds := i.Message.Embeds
-	rejectedEmbed := &discordgo.MessageEmbed{
-		Title:       "审核结果",
-		Description: fmt.Sprintf("**审核员:** <@%s>\n**状态:** ❌ 已拒绝", i.Member.User.ID),
-		Color:       0xFF0000,
-	}
-	updatedEmbeds := append(originalEmbeds, rejectedEmbed)
-
-	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseUpdateMessage,
-		Data: &discordgo.InteractionResponseData{
-			Embeds:     updatedEmbeds,
-			Components: []discordgo.MessageComponent{},
-		},
-	})
-}
-
-// IgnoreSubmissionHandler handles ignoring submissions
-func IgnoreSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	submissionID := strings.Split(i.MessageComponentData().CustomID, ":")[1]
-
-	err := db.UpdateSubmissionReviewer(submissionID, "ignored", i.Member.User.ID)
-	if err != nil {
-		fmt.Printf("Error updating submission status: %v\n", err)
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "更新状态失败 ",
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
-		return
-	}
-
-	originalEmbeds := i.Message.Embeds
-	ignoredEmbed := &discordgo.MessageEmbed{
-		Title:       "审核结果",
-		Description: fmt.Sprintf("**审核员:** <@%s>\n**状态:** ⏭️ 已忽略", i.Member.User.ID),
-		Color:       0x808080,
-	}
-	updatedEmbeds := append(originalEmbeds, ignoredEmbed)
-
-	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseUpdateMessage,
-		Data: &discordgo.InteractionResponseData{
-			Embeds:     updatedEmbeds,
-			Components: []discordgo.MessageComponent{},
-		},
-	})
-}
-
-// BanSubmissionHandler handles banning users and their submissions
-func BanSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	submissionID := strings.Split(i.MessageComponentData().CustomID, ":")[1]
-
-	// Get submission to get user ID
-	submission, err := db.GetSubmission(submissionID)
-	if err != nil {
-		fmt.Printf("Error getting submission: %v\n", err)
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "无法找到该投稿 ",
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
-		return
-	}
-
-	// Ban the user
-	err = db.BanUser(submission.UserID, "违规投稿")
-	if err != nil {
-		fmt.Printf("Error banning user: %v\n", err)
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "封禁用户失败 ",
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
-		return
-	}
-
-	// Update submission status
-	err = db.UpdateSubmissionReviewer(submissionID, "rejected", i.Member.User.ID)
-	if err != nil {
-		fmt.Printf("Error updating submission status: %v\n", err)
-	}
-
-	originalEmbeds := i.Message.Embeds
-	bannedEmbed := &discordgo.MessageEmbed{
-		Title:       "审核结果",
-		Description: fmt.Sprintf("**审核员:** <@%s>\n**状态:** 🔨 用户已封禁，投稿已拒绝", i.Member.User.ID),
-		Color:       0x8B0000,
-	}
-	updatedEmbeds := append(originalEmbeds, bannedEmbed)
-
-	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseUpdateMessage,
-		Data: &discordgo.InteractionResponseData{
-			Embeds:     updatedEmbeds,
-			Components: []discordgo.MessageComponent{},
-		},
-	})
-}
-
-// DeleteSubmissionHandler handles deletion of submissions
-func DeleteSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	submissionID := strings.Split(i.MessageComponentData().CustomID, ":")[1]
-
-	err := db.DeleteSubmission(submissionID)
-	if err != nil {
-		fmt.Printf("Error deleting submission: %v\n", err)
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "删除投稿失败 ",
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
-		return
-	}
-
-	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseUpdateMessage,
-		Data: &discordgo.InteractionResponseData{
-			Embeds: []*discordgo.MessageEmbed{
-				{
-					Title:       "投稿已删除",
-					Description: fmt.Sprintf("**投稿ID:** %s\n**审核员:** <@%s>\n**状态:** 🗑️ 已删除", submissionID, i.Member.User.ID),
-					Color:       0x000000,
-				},
-			},
-			Components: []discordgo.MessageComponent{},
-		},
-	})
 }

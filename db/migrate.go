@@ -20,7 +20,7 @@ func createTables() {
 		downvotes INTEGER NOT NULL DEFAULT 0,
 		created_at INTEGER NOT NULL,
 		reviewer_id TEXT,
-		is_blocked INTEGER NOT NULL DEFAULT 0,
+		status TEXT NOT NULL DEFAULT 'pending',
 		guild_id TEXT,
 		original_title TEXT,
 		original_author TEXT,
@@ -48,6 +48,19 @@ func createTables() {
 	_, err = DB.Exec(createBannedUsersTableSQL)
 	if err != nil {
 		log.Fatalf("Failed to create banned_users table: %v", err)
+	}
+
+	// SQL statement to create the 'users' table.
+	createUsersTableSQL := `
+	CREATE TABLE IF NOT EXISTS users (
+		user_id TEXT PRIMARY KEY,
+		featured_count INTEGER NOT NULL DEFAULT 0,
+		rejected_count INTEGER NOT NULL DEFAULT 0
+	);`
+
+	_, err = DB.Exec(createUsersTableSQL)
+	if err != nil {
+		log.Fatalf("Failed to create users table: %v", err)
 	}
 
 	// SQL statement to create the 'id_counter' table for sequential ID generation.
@@ -78,6 +91,12 @@ func createTables() {
 	_, err = DB.Exec("ALTER TABLE recommendations ADD COLUMN is_anonymous INTEGER NOT NULL DEFAULT 0")
 	if err != nil && !isColumnExistsError(err) {
 		log.Printf("Failed to add is_anonymous column, it might already exist: %v", err)
+	}
+
+	// Add status column if it doesn't exist (migration for existing databases)
+	_, err = DB.Exec("ALTER TABLE recommendations ADD COLUMN status TEXT NOT NULL DEFAULT 'pending'")
+	if err != nil && !isColumnExistsError(err) {
+		log.Printf("Failed to add status column, it might already exist: %v", err)
 	}
 
 	log.Println("Database tables initialized successfully.")

@@ -1,9 +1,40 @@
 package db
 
 import (
+	"amway/model"
 	"database/sql"
 	"time"
 )
+
+// GetUserStats retrieves a user's stats from the users table.
+func GetUserStats(userID string) (*model.User, error) {
+	var user model.User
+	err := DB.QueryRow("SELECT user_id, featured_count, rejected_count FROM users WHERE user_id = ?", userID).Scan(&user.UserID, &user.FeaturedCount, &user.RejectedCount)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// If the user is not in the table, create a new record
+			_, err = DB.Exec("INSERT INTO users(user_id, featured_count, rejected_count) VALUES(?, 0, 0)", userID)
+			if err != nil {
+				return nil, err
+			}
+			return &model.User{UserID: userID, FeaturedCount: 0, RejectedCount: 0}, nil
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
+// IncrementFeaturedCount increments the featured_count for a user.
+func IncrementFeaturedCount(userID string) error {
+	_, err := DB.Exec("INSERT INTO users (user_id, featured_count) VALUES (?, 1) ON CONFLICT(user_id) DO UPDATE SET featured_count = featured_count + 1", userID)
+	return err
+}
+
+// IncrementRejectedCount increments the rejected_count for a user.
+func IncrementRejectedCount(userID string) error {
+	_, err := DB.Exec("INSERT INTO users (user_id, rejected_count) VALUES (?, 1) ON CONFLICT(user_id) DO UPDATE SET rejected_count = rejected_count + 1", userID)
+	return err
+}
 
 // IsUserBanned checks if a user is in the banned_users table.
 func IsUserBanned(userID string) (bool, error) {

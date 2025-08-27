@@ -19,7 +19,7 @@ func scanSubmission(scanner rowScanner) (*model.Submission, error) {
 		&sub.ID, &sub.UserID, &sub.AuthorNickname, &sub.Content, &sub.URL, &sub.Timestamp,
 		&sub.GuildID, &sub.OriginalTitle, &sub.OriginalAuthor,
 		&sub.RecommendTitle, &sub.RecommendContent, &sub.OriginalPostTimestamp, &sub.FinalAmwayMessageID,
-		&sub.Upvotes, &sub.Questions, &sub.Downvotes, &sub.IsAnonymous,
+		&sub.Upvotes, &sub.Questions, &sub.Downvotes, &sub.IsAnonymous, &sub.Status,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -82,19 +82,7 @@ func UpdateSubmissionStatus(submissionID, status string) error {
 
 // UpdateSubmissionReviewer updates the status and reviewer of a submission.
 func UpdateSubmissionReviewer(submissionID, status, reviewerID string) error {
-	var isBlocked int
-	switch status {
-	case "approved":
-		isBlocked = 1
-	case "rejected":
-		isBlocked = 2
-	case "ignored":
-		isBlocked = 3
-	default: // pending
-		isBlocked = 0
-	}
-
-	_, err := DB.Exec("UPDATE recommendations SET is_blocked = ?, reviewer_id = ? WHERE id = ?", isBlocked, reviewerID, submissionID)
+	_, err := DB.Exec("UPDATE recommendations SET status = ?, reviewer_id = ? WHERE id = ?", status, reviewerID, submissionID)
 	return err
 }
 
@@ -115,7 +103,7 @@ func GetSubmission(submissionID string) (*model.Submission, error) {
 		COALESCE(recommend_content, '') as recommend_content,
 		COALESCE(original_post_timestamp, '') as original_post_timestamp,
 		COALESCE(final_amway_message_id, '') as final_amway_message_id,
-		upvotes, questions, downvotes, is_anonymous
+		upvotes, questions, downvotes, is_anonymous, status
 	FROM recommendations WHERE id = ? AND is_deleted = 0`, submissionID)
 
 	return scanSubmission(row)
@@ -138,7 +126,7 @@ func GetSubmissionByMessageID(messageID string) (*model.Submission, error) {
 		COALESCE(recommend_content, '') as recommend_content,
 		COALESCE(original_post_timestamp, '') as original_post_timestamp,
 		COALESCE(final_amway_message_id, '') as final_amway_message_id,
-		upvotes, questions, downvotes, is_anonymous
+		upvotes, questions, downvotes, is_anonymous, status
 	FROM recommendations WHERE final_amway_message_id = ? AND is_deleted = 0`, messageID)
 
 	return scanSubmission(row)
@@ -180,7 +168,7 @@ func GetSubmissionWithDeleted(submissionID string) (*model.Submission, error) {
 		COALESCE(recommend_content, '') as recommend_content,
 		COALESCE(original_post_timestamp, '') as original_post_timestamp,
 		COALESCE(final_amway_message_id, '') as final_amway_message_id,
-		upvotes, questions, downvotes, is_anonymous
+		upvotes, questions, downvotes, is_anonymous, status
 	FROM recommendations WHERE id = ?`, submissionID)
 
 	return scanSubmission(row)
@@ -210,7 +198,7 @@ func GetSubmissionsByAuthor(authorID string, guildID string) ([]*model.Submissio
 		COALESCE(recommend_content, '') as recommend_content,
 		COALESCE(original_post_timestamp, '') as original_post_timestamp,
 		COALESCE(final_amway_message_id, '') as final_amway_message_id,
-		upvotes, questions, downvotes, is_anonymous
+		upvotes, questions, downvotes, is_anonymous, status
 	FROM recommendations WHERE author_id = ? AND guild_id = ? AND is_deleted = 0 ORDER BY created_at DESC`
 
 	rows, err := DB.Query(query, authorID, guildID)
@@ -248,7 +236,7 @@ func GetAllSubmissionsByAuthor(authorID string) ([]*model.Submission, error) {
 		COALESCE(recommend_content, '') as recommend_content,
 		COALESCE(original_post_timestamp, '') as original_post_timestamp,
 		COALESCE(final_amway_message_id, '') as final_amway_message_id,
-		upvotes, questions, downvotes, is_anonymous
+		upvotes, questions, downvotes, is_anonymous, status
 	FROM recommendations WHERE author_id = ? AND is_deleted = 0 ORDER BY created_at DESC`
 
 	rows, err := DB.Query(query, authorID)
