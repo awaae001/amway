@@ -22,9 +22,6 @@ func RegisterHandlers() {
 	handler.AddModalHandler("submission_content_modal", ContentSubmissionHandler)
 	handler.AddComponentHandler("final_submit", FinalSubmissionHandler)
 
-	// 保留旧的处理器以确保兼容性
-	handler.AddModalHandler("submission_modal", SubmissionModalHandler)
-
 	// 审核相关处理器
 	handler.AddComponentHandler("approve_submission", ApproveSubmissionHandler)
 	handler.AddComponentHandler("reject_submission", RejectSubmissionHandler)

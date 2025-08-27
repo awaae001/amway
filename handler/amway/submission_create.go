@@ -329,6 +329,30 @@ func ContentSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCrea
 }
 
 func FinalSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	banned, err := db.IsUserBanned(i.Member.User.ID)
+	if err != nil {
+		fmt.Printf("Error checking if user is banned: %v\n", err)
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "无法处理您的请求，请稍后再试。",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+		return
+	}
+
+	if banned {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "您已被禁止投稿",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+		return
+	}
+
 	customID := i.MessageComponentData().CustomID
 	parts := strings.Split(customID, ":")
 	if len(parts) < 3 {
@@ -360,7 +384,7 @@ func FinalSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate
 	utils.RemoveFromCache(cacheID)
 
 	content := "🍻您的安利投稿已成功提交，正在等待审核"
-	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseUpdateMessage,
 		Data: &discordgo.InteractionResponseData{
 			Content:    content,
