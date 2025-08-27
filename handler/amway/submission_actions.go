@@ -89,6 +89,34 @@ func updateReviewMessage(s *discordgo.Session, i *discordgo.InteractionCreate, s
 		Color:       0x00BFFF, // Deep sky blue
 	}
 
+	// Check for conflict on the second vote
+	if len(session.Votes) == 2 {
+		voteCounts := make(map[vote.VoteType]int)
+		for _, v := range session.Votes {
+			voteCounts[v.Type]++
+			if v.Type == vote.Feature {
+				voteCounts[vote.Pass]++
+			}
+		}
+
+		hasConsensus := false
+		for _, count := range voteCounts {
+			if count >= 2 {
+				hasConsensus = true
+				break
+			}
+		}
+
+		if !hasConsensus {
+			voteEmbed.Fields = []*discordgo.MessageEmbedField{
+				{
+					Name:  "注意",
+					Value: "前两票出现差异，等待第三票决定最终结果。",
+				},
+			}
+		}
+	}
+
 	updatedEmbeds := append(originalEmbeds, voteEmbed)
 
 	// Check if this is the first vote. If so, create a new embed. If not, edit the existing one.
@@ -153,19 +181,40 @@ func processVoteResult(s *discordgo.Session, i *discordgo.InteractionCreate, ses
 		}
 	}
 
-	if finalStatus == "" && len(session.Votes) == 2 {
-		hasPass := voteCounts[vote.Pass] > 0
-		hasReject := voteCounts[vote.Reject] > 0
-		hasBan := voteCounts[vote.Ban] > 0
+	// NEW LOGIC: If there are 2 votes with no consensus, wait for a 3rd.
+	// The 3rd vote decides the outcome.
+	if len(session.Votes) == 2 {
+		hasConsensus := false
+		for _, count := range voteCounts {
+			if count >= 2 {
+				hasConsensus = true
+				break
+			}
+		}
+		if !hasConsensus {
+			return // Wait for the third vote
+		}
+	}
 
-		if (hasPass && hasReject) || (hasPass && hasBan) {
-			// Conflict, wait for a third vote
-			return
+	if len(session.Votes) >= 3 {
+		// With 3 or more votes, the last vote is the tie-breaker.
+		lastVoteType := session.Votes[len(session.Votes)-1].Type
+		reviewerID = session.Votes[len(session.Votes)-1].VoterID
+
+		switch lastVoteType {
+		case vote.Pass:
+			finalStatus = "approved"
+		case vote.Feature:
+			finalStatus = "featured"
+		case vote.Reject:
+			finalStatus = "rejected"
+		case vote.Ban:
+			finalStatus = "banned"
 		}
 	}
 
 	if finalStatus == "" {
-		return // No consensus yet, or conflict with more than 2 voters
+		return // Not enough votes or no decision reached yet
 	}
 
 	submission, err := db.GetSubmission(session.SubmissionID)
@@ -174,36 +223,41 @@ func processVoteResult(s *discordgo.Session, i *discordgo.InteractionCreate, ses
 		return
 	}
 
-	// Update user stats
-	switch finalStatus {
-	case "approved":
-		// No change in stats for a simple approval
-	case "featured":
-		db.IncrementFeaturedCount(submission.UserID)
-	case "rejected":
-		db.IncrementRejectedCount(submission.UserID)
-	case "banned":
-		db.BanUser(submission.UserID, "Banned through submission voting.")
-		db.IncrementRejectedCount(submission.UserID) // Banned submissions are also considered rejected
-		finalStatus = "rejected"                     // The submission status itself is 'rejected'
-	}
+	oldStatus := submission.Status
 
-	// Update submission status in the database
-	if err := db.UpdateSubmissionReviewer(session.SubmissionID, finalStatus, reviewerID); err != nil {
-		log.Printf("Failed to update submission status for %s: %v", session.SubmissionID, err)
-		return
-	}
+	// Only proceed if the final status is different from the old status
+	if finalStatus != oldStatus {
+		// Update user stats based on the new status
+		switch finalStatus {
+		case "approved":
+			// No change in stats for a simple approval
+		case "featured":
+			db.IncrementFeaturedCount(submission.UserID)
+		case "rejected":
+			db.IncrementRejectedCount(submission.UserID)
+		case "banned":
+			db.BanUser(submission.UserID, "Banned through submission voting.")
+			db.IncrementRejectedCount(submission.UserID) // Banned submissions are also considered rejected
+			finalStatus = "rejected"                     // The submission status itself is 'rejected'
+		}
 
-	// If approved or featured, send to the publication channel
-	if finalStatus == "approved" || finalStatus == "featured" {
-		publishMsg, err := sendPublicationMessage(s, submission)
-		if err != nil {
-			log.Printf("Error sending publication message for submission %s: %v", session.SubmissionID, err)
-		} else {
-			if err := db.UpdateFinalAmwayMessageID(session.SubmissionID, publishMsg.ID); err != nil {
-				log.Printf("Error updating final amway message ID for submission %s: %v", session.SubmissionID, err)
+		// Update submission status in the database
+		if err := db.UpdateSubmissionReviewer(session.SubmissionID, finalStatus, reviewerID); err != nil {
+			log.Printf("Failed to update submission status for %s: %v", session.SubmissionID, err)
+			return
+		}
+
+		// If the submission was pending and is now approved or featured, send the publication messages.
+		if oldStatus == "pending" && (finalStatus == "approved" || finalStatus == "featured") {
+			publishMsg, err := sendPublicationMessage(s, submission)
+			if err != nil {
+				log.Printf("Error sending publication message for submission %s: %v", session.SubmissionID, err)
+			} else {
+				if err := db.UpdateFinalAmwayMessageID(session.SubmissionID, publishMsg.ID); err != nil {
+					log.Printf("Error updating final amway message ID for submission %s: %v", session.SubmissionID, err)
+				}
+				sendNotificationToOriginalPost(s, submission, publishMsg)
 			}
-			sendNotificationToOriginalPost(s, submission, publishMsg)
 		}
 	}
 
