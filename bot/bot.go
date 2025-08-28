@@ -14,21 +14,21 @@ import (
 
 var dg *discordgo.Session
 
-// Start starts the bot
+// Start 启动机器人
 func Start() {
 	err := config.LoadConfig()
 	if err != nil {
-		log.Printf("Error loading config: %v", err)
+		log.Printf("加载配置文件时出错: %v", err)
 		return
 	}
 
-	// 注册amway处理程序
+	// 注册 amway 处理程序
 	amway.RegisterHandlers()
 
-	// Create a new Discord session using the provided bot token.
+	// 使用提供的机器人令牌创建一个新的 Discord 会话。
 	dg, err = discordgo.New("Bot " + config.Cfg.Token)
 	if err != nil {
-		log.Printf("error creating Discord session, %v", err)
+		log.Printf("创建 Discord 会话时出错, %v", err)
 		return
 	}
 
@@ -55,4 +55,9 @@ func Start() {
 	<-sc
 
 	dg.Close()
+}
+
+// GetSession 返回当前的 Discord 会话
+func GetSession() *discordgo.Session {
+	return dg
 }

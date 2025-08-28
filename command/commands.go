@@ -6,7 +6,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-// AllCommands contains all of the commands
+// AllCommands 包含所有命令
 var AllCommands = []*discordgo.ApplicationCommand{
 	def.AmwayAdminCommand,
 	def.CreatePanelCommand,

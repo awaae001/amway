@@ -7,39 +7,37 @@ option go_package = "grpc/gen/recommendation";
 // Service Definition
 service RecommendationService {
   // 根据 ID 获取一个安利小纸条
-  rpc GetRecommendation (GetRecommendationRequest) returns (RecommendationSlip);
+  rpc GetRecommendation(GetRecommendationRequest) returns (RecommendationSlip);
 
   // 查询一个用户ID全部的小纸条
-  rpc GetRecommendationsByAuthor (GetRecommendationsByAuthorRequest) returns (GetRecommendationsByAuthorResponse);
+  rpc GetRecommendationsByAuthor(GetRecommendationsByAuthorRequest)
+      returns (GetRecommendationsByAuthorResponse);
 }
 
 // Message Definitions
 message RecommendationSlip {
-  string id = 1;         // 安利小纸条的唯一 ID
-  string author_id = 2;  // 作者的 Discord 用户 ID
+  string id = 1;              // 安利小纸条的唯一 ID
+  string author_id = 2;       // 作者的 Discord 用户 ID
   string author_nickname = 3; // 作者当时的昵称
-  string content = 4;    // 安利内容
-  string post_url = 5;   // 指向相关帖子的 URL
-  int32 upvotes = 6;     // 获得的“点赞”数
-  int32 questions = 7;   // 获得的“疑问”数
-  int32 downvotes = 8;   // 获得的“点踩”数
-  int64 created_at = 9;  // 创建时间戳 (Unix timestamp)
-  string reviewer_id = 10; // 审定该小纸条的管理员 ID
-  int32 is_blocked = 11;  // 标记该小纸条是否已被屏蔽 (0: pending, 1: approved, 2: rejected, 3: ignored)
-  string guild_id = 12; // 小纸条所属的 Discord 服务器 ID
-  string original_title = 13;
-  string original_author = 14;
-  string recommend_title = 15;
-  string recommend_content = 16;
-  string original_post_timestamp = 17;
-  string final_amway_message_id = 18;
-  bool is_deleted = 19;
-  bool is_anonymous = 20;
+  string content = 4;         // 安利内容
+  string post_url = 5;        // 指向相关帖子的 URL
+  int32 upvotes = 6;          // 获得的“点赞”数
+  int32 questions = 7;        // 获得的“疑问”数
+  int32 downvotes = 8;        // 获得的“点踩”数
+  int64 created_at = 9;       // 创建时间戳 (Unix timestamp)
+  string reviewer_id = 10;    // 审定该小纸条的管理员 ID
+  string guild_id = 11;       // 小纸条所属的 Discord 服务器 ID
+  string original_title = 12;
+  string original_author = 13;
+  string recommend_title = 14;
+  string recommend_content = 15;
+  string original_post_timestamp = 16;
+  string final_amway_message_id = 17;
+  bool is_deleted = 18;
+  bool is_anonymous = 19;
 }
 
-message GetRecommendationRequest {
-  string id = 1;
-}
+message GetRecommendationRequest { string id = 1; }
 
 message GetRecommendationsByAuthorRequest {
   string author_id = 1;

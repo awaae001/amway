@@ -161,8 +161,6 @@ func ConfirmPostHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		ChannelID:      channelID,
 		MessageID:      messageID,
 		OriginalAuthor: originalAuthor,
-		EphChannelID:   i.Message.ChannelID,
-		EphMessageID:   i.Message.ID,
 	}
 	cacheID := utils.AddToCache(cacheData)
 
@@ -197,7 +195,7 @@ func ConfirmPostHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			Content:    "请选择：是否将您的安利作为回复发送到原帖下方？",
 			Flags:      discordgo.MessageFlagsEphemeral,
 			Components: components,
-			Embeds:     i.Message.Embeds,
+			Embeds:     []*discordgo.MessageEmbed{},
 		},
 	})
 
@@ -317,9 +315,6 @@ func ContentSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCrea
 		return
 	}
 
-	// This message edit is no longer necessary as the final submission
-	// will clean up all the ephemeral messages.
-
 	var recommendTitle, recommendContent string
 	for _, component := range data.Components {
 		if actionRow, ok := component.(*discordgo.ActionsRow); ok {
@@ -360,7 +355,6 @@ func ContentSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCrea
 		},
 		Color: 0x00BFFF,
 	}
-
 	components := []discordgo.MessageComponent{
 		discordgo.ActionsRow{
 			Components: []discordgo.MessageComponent{
@@ -386,14 +380,18 @@ func ContentSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCrea
 		},
 	}
 
-	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
+	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseUpdateMessage,
 		Data: &discordgo.InteractionResponseData{
+			Content:    "",
 			Embeds:     []*discordgo.MessageEmbed{embed},
 			Components: components,
 			Flags:      discordgo.MessageFlagsEphemeral,
 		},
 	})
+	if err != nil {
+		fmt.Printf("Error updating message with preview: %v\n", err)
+	}
 }
 
 func FinalSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
@@ -451,35 +449,18 @@ func FinalSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate
 	}
 	utils.RemoveFromCache(cacheID)
 
-	// Acknowledge the interaction with a generic ephemeral message.
-	// This message will be updated almost instantly, so the user will likely not see it.
+	finalContent := "🍻您的安利投稿已成功提交，正在等待审核"
 	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Type: discordgo.InteractionResponseUpdateMessage,
 		Data: &discordgo.InteractionResponseData{
-			Content: "正在处理您的提交...",
-			Flags:   discordgo.MessageFlagsEphemeral,
+			Content:    finalContent,
+			Components: []discordgo.MessageComponent{},
+			Embeds:     []*discordgo.MessageEmbed{},
+			Flags:      discordgo.MessageFlagsEphemeral,
 		},
 	})
 	if err != nil {
-		fmt.Printf("Error sending initial final response: %v\n", err)
-	}
-
-	// Now, edit the *original* ephemeral message to show the final status and remove components.
-	finalContent := "🍻您的安利投稿已成功提交，正在等待审核"
-	emptyComponents := []discordgo.MessageComponent{}
-	_, err = s.ChannelMessageEditComplex(&discordgo.MessageEdit{
-		Channel:    cacheData.EphChannelID,
-		ID:         cacheData.EphMessageID,
-		Content:    &finalContent,
-		Components: &emptyComponents,
-		Embeds:     &[]*discordgo.MessageEmbed{},
-	})
-	if err != nil {
-		fmt.Printf("Error editing original ephemeral message with final status: %v\n", err)
-		// Fallback to editing the interaction response if editing the original message fails
-		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-			Content: &finalContent,
-		})
+		fmt.Printf("Error updating final submission message: %v\n", err)
 	}
 
 	guildID := i.GuildID
@@ -505,6 +486,10 @@ func FinalSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{Content: &errorContent})
 		return
 	}
+
+	// Update cache with submission ID for auto-rejection functionality
+	cacheData.SubmissionID = submissionID
+	utils.UpdateCache(cacheID, cacheData)
 
 	submission := &model.Submission{
 		ID:               submissionID,

@@ -22,7 +22,6 @@ func SubmissionToRecommendationSlip(submission *model.Submission) (*recommendati
 		Downvotes:             int32(submission.Downvotes),
 		CreatedAt:             submission.Timestamp,
 		ReviewerId:            "", // This field is not currently tracked in the database
-		IsBlocked:             0,  // This would need to be computed based on is_blocked status (0: pending, 1: approved, 2: rejected, 3: ignored)
 		GuildId:               submission.GuildID,
 		OriginalTitle:         submission.OriginalTitle,
 		OriginalAuthor:        submission.OriginalAuthor,

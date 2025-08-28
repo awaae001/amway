@@ -12,9 +12,8 @@ type SubmissionData struct {
 	OriginalAuthor   string
 	RecommendTitle   string
 	RecommendContent string
-	EphChannelID     string
-	EphMessageID     string
 	ReplyToOriginal  bool
+	SubmissionID     string // Added to track the database submission ID
 	CreatedAt        time.Time
 }
 
