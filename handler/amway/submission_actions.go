@@ -152,19 +152,11 @@ func SelectReasonHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 
 	submissionID := cacheData.SubmissionID
 
-	// Get the original reasons from the message component
-	var allReasons []string
-	for _, comp := range i.Message.Components {
-		row, ok := comp.(*discordgo.ActionsRow)
-		if !ok {
-			continue
-		}
-		for _, btn := range row.Components {
-			button, ok := btn.(*discordgo.Button)
-			if ok && strings.HasPrefix(button.CustomID, "select_reason:") {
-				allReasons = append(allReasons, button.Label)
-			}
-		}
+	// Get all available reasons from the new cache
+	allReasons, ok := model.GetAvailableRejectionReasons(submissionID)
+	if !ok || len(allReasons) <= reasonIndex {
+		log.Printf("Available rejection reasons not found or index out of bounds for submission %s", submissionID)
+		return
 	}
 
 	selectedReason := allReasons[reasonIndex]
@@ -265,6 +257,7 @@ func SendRejectionDMHandler(s *discordgo.Session, i *discordgo.InteractionCreate
 
 	// Cleanup cache and update the original message
 	model.DeleteRejectionReasons(submissionID)
+	model.DeleteAvailableRejectionReasons(submissionID) // Clean up the new cache as well
 	utils.RemoveFromCache(cacheID)
 	log.Printf("Removed cache entry %s after sending rejection DM for submission %s", cacheID, submissionID)
 	adminActionUpdate(s, i)
@@ -273,7 +266,7 @@ func SendRejectionDMHandler(s *discordgo.Session, i *discordgo.InteractionCreate
 // adminActionUpdate updates the admin message, disabling components after action.
 func adminActionUpdate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	cacheID := strings.Split(i.MessageComponentData().CustomID, ":")[1]
-	
+
 	// Get submission data from cache (may fail if cache was already cleaned)
 	cacheData, found := utils.GetFromCache(cacheID)
 	var submissionID string
@@ -283,7 +276,7 @@ func adminActionUpdate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		// If cache is not found, we can't get the submissionID, but that's okay for DM sent scenario
 		log.Printf("Cache already cleaned for cacheID %s", cacheID)
 	}
-	
+
 	selectedReasons, _ := model.GetRejectionReasons(submissionID)
 
 	// Create a map for quick lookup of selected reasons
@@ -328,6 +321,8 @@ func adminActionUpdate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseUpdateMessage,
 		Data: &discordgo.InteractionResponseData{
+			Content:    i.Message.Content,
+			Embeds:     i.Message.Embeds,
 			Components: newComponents,
 		},
 	})

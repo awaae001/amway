@@ -190,6 +190,12 @@ func handleStatusChange(s *discordgo.Session, submission *model.Submission, fina
 // finalizeReviewMessage updates the original review message to show the final result.
 func finalizeReviewMessage(s *discordgo.Session, i *discordgo.InteractionCreate, submissionID, finalStatus string, reasons []string, cacheID string) {
 	finalEmbed := BuildFinalVoteEmbed(submissionID, finalStatus)
+
+	// If there are reasons, store them in the new cache so the selection handler can access them.
+	if len(reasons) > 0 {
+		model.SetAvailableRejectionReasons(submissionID, reasons)
+	}
+
 	components := BuildRejectionComponents(cacheID, reasons)
 
 	embeds := i.Message.Embeds
@@ -205,6 +211,7 @@ func finalizeReviewMessage(s *discordgo.Session, i *discordgo.InteractionCreate,
 
 	if finalStatus != "rejected" || len(reasons) == 0 {
 		utils.RemoveFromCache(cacheID)
+		model.DeleteAvailableRejectionReasons(submissionID) // Clean up the new cache as well
 		log.Printf("Removed cache entry %s after voting completion for submission %s", cacheID, submissionID)
 	}
 }

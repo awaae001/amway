@@ -19,8 +19,9 @@ type SubmissionData struct {
 
 // Global cache for rejection reasons
 var (
-	rejectionReasonCache = make(map[string][]string)
-	cacheMutex           = &sync.Mutex{}
+	rejectionReasonCache           = make(map[string][]string)
+	availableRejectionReasonsCache = make(map[string][]string) // To store all reasons before selection
+	cacheMutex                     = &sync.Mutex{}
 )
 
 // SetRejectionReasons caches the selected rejection reasons for a submission.
@@ -43,4 +44,26 @@ func DeleteRejectionReasons(submissionID string) {
 	cacheMutex.Lock()
 	defer cacheMutex.Unlock()
 	delete(rejectionReasonCache, submissionID)
+}
+
+// SetAvailableRejectionReasons caches all available rejection reasons for a submission.
+func SetAvailableRejectionReasons(submissionID string, reasons []string) {
+	cacheMutex.Lock()
+	defer cacheMutex.Unlock()
+	availableRejectionReasonsCache[submissionID] = reasons
+}
+
+// GetAvailableRejectionReasons retrieves all cached available rejection reasons for a submission.
+func GetAvailableRejectionReasons(submissionID string) ([]string, bool) {
+	cacheMutex.Lock()
+	defer cacheMutex.Unlock()
+	reasons, ok := availableRejectionReasonsCache[submissionID]
+	return reasons, ok
+}
+
+// DeleteAvailableRejectionReasons removes the cached available rejection reasons for a submission.
+func DeleteAvailableRejectionReasons(submissionID string) {
+	cacheMutex.Lock()
+	defer cacheMutex.Unlock()
+	delete(availableRejectionReasonsCache, submissionID)
 }
