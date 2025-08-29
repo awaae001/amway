@@ -29,7 +29,8 @@ func createTables() {
 		original_post_timestamp TEXT,
 		final_amway_message_id TEXT,
 		is_deleted INTEGER NOT NULL DEFAULT 0,
-		is_anonymous INTEGER NOT NULL DEFAULT 0
+		is_anonymous INTEGER NOT NULL DEFAULT 0,
+		vote_file_id TEXT
 	);`
 
 	_, err := DB.Exec(createRecommendationsTableSQL)
@@ -97,6 +98,12 @@ func createTables() {
 	_, err = DB.Exec("ALTER TABLE recommendations ADD COLUMN status TEXT NOT NULL DEFAULT 'pending'")
 	if err != nil && !isColumnExistsError(err) {
 		log.Printf("Failed to add status column, it might already exist: %v", err)
+	}
+
+	// Add vote_file_id column if it doesn't exist (migration for existing databases)
+	_, err = DB.Exec("ALTER TABLE recommendations ADD COLUMN vote_file_id TEXT")
+	if err != nil && !isColumnExistsError(err) {
+		log.Printf("Failed to add vote_file_id column, it might already exist: %v", err)
 	}
 
 	log.Println("Database tables initialized successfully.")

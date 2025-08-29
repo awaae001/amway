@@ -2,7 +2,9 @@ package db
 
 import (
 	"amway/model"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"time"
 )
@@ -19,7 +21,7 @@ func scanSubmission(scanner rowScanner) (*model.Submission, error) {
 		&sub.ID, &sub.UserID, &sub.AuthorNickname, &sub.Content, &sub.URL, &sub.Timestamp,
 		&sub.GuildID, &sub.OriginalTitle, &sub.OriginalAuthor,
 		&sub.RecommendTitle, &sub.RecommendContent, &sub.OriginalPostTimestamp, &sub.FinalAmwayMessageID,
-		&sub.Upvotes, &sub.Questions, &sub.Downvotes, &sub.IsAnonymous, &sub.Status,
+		&sub.Upvotes, &sub.Questions, &sub.Downvotes, &sub.IsAnonymous, &sub.Status, &sub.VoteFileID,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -50,10 +52,17 @@ func AddSubmissionV2(userID, url, recommendTitle, recommendContent, originalTitl
 
 	submissionID := fmt.Sprintf("%d", newID)
 
+	// Generate a random 8-character hex ID for the vote file
+	bytes := make([]byte, 4)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	voteFileID := hex.EncodeToString(bytes)
+
 	stmt, err := tx.Prepare(`INSERT INTO recommendations(
 		id, author_id, author_nickname, content, post_url, created_at, guild_id,
-		original_title, original_author, recommend_title, recommend_content, original_post_timestamp, is_anonymous
-	) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+		original_title, original_author, recommend_title, recommend_content, original_post_timestamp, is_anonymous, vote_file_id
+	) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return "", err
 	}
@@ -66,7 +75,7 @@ func AddSubmissionV2(userID, url, recommendTitle, recommendContent, originalTitl
 
 	_, err = stmt.Exec(
 		submissionID, userID, authorNickname, fullContent, url, time.Now().Unix(), guildID,
-		originalTitle, originalAuthor, recommendTitle, recommendContent, originalPostTimestamp, isAnonymous,
+		originalTitle, originalAuthor, recommendTitle, recommendContent, originalPostTimestamp, isAnonymous, voteFileID,
 	)
 	if err != nil {
 		return "", err
@@ -103,7 +112,7 @@ func GetSubmission(submissionID string) (*model.Submission, error) {
 		COALESCE(recommend_content, '') as recommend_content,
 		COALESCE(original_post_timestamp, '') as original_post_timestamp,
 		COALESCE(final_amway_message_id, '') as final_amway_message_id,
-		upvotes, questions, downvotes, is_anonymous, status
+		upvotes, questions, downvotes, is_anonymous, status, COALESCE(vote_file_id, '') as vote_file_id
 	FROM recommendations WHERE id = ? AND is_deleted = 0`, submissionID)
 
 	return scanSubmission(row)
@@ -126,7 +135,7 @@ func GetSubmissionByMessageID(messageID string) (*model.Submission, error) {
 		COALESCE(recommend_content, '') as recommend_content,
 		COALESCE(original_post_timestamp, '') as original_post_timestamp,
 		COALESCE(final_amway_message_id, '') as final_amway_message_id,
-		upvotes, questions, downvotes, is_anonymous, status
+		upvotes, questions, downvotes, is_anonymous, status, COALESCE(vote_file_id, '') as vote_file_id
 	FROM recommendations WHERE final_amway_message_id = ? AND is_deleted = 0`, messageID)
 
 	return scanSubmission(row)
@@ -168,7 +177,7 @@ func GetSubmissionWithDeleted(submissionID string) (*model.Submission, error) {
 		COALESCE(recommend_content, '') as recommend_content,
 		COALESCE(original_post_timestamp, '') as original_post_timestamp,
 		COALESCE(final_amway_message_id, '') as final_amway_message_id,
-		upvotes, questions, downvotes, is_anonymous, status
+		upvotes, questions, downvotes, is_anonymous, status, COALESCE(vote_file_id, '') as vote_file_id
 	FROM recommendations WHERE id = ?`, submissionID)
 
 	return scanSubmission(row)
@@ -198,7 +207,7 @@ func GetSubmissionsByAuthor(authorID string, guildID string) ([]*model.Submissio
 		COALESCE(recommend_content, '') as recommend_content,
 		COALESCE(original_post_timestamp, '') as original_post_timestamp,
 		COALESCE(final_amway_message_id, '') as final_amway_message_id,
-		upvotes, questions, downvotes, is_anonymous, status
+		upvotes, questions, downvotes, is_anonymous, status, COALESCE(vote_file_id, '') as vote_file_id
 	FROM recommendations WHERE author_id = ? AND guild_id = ? AND is_deleted = 0 ORDER BY created_at DESC`
 
 	rows, err := DB.Query(query, authorID, guildID)
@@ -236,7 +245,7 @@ func GetAllSubmissionsByAuthor(authorID string) ([]*model.Submission, error) {
 		COALESCE(recommend_content, '') as recommend_content,
 		COALESCE(original_post_timestamp, '') as original_post_timestamp,
 		COALESCE(final_amway_message_id, '') as final_amway_message_id,
-		upvotes, questions, downvotes, is_anonymous, status
+		upvotes, questions, downvotes, is_anonymous, status, COALESCE(vote_file_id, '') as vote_file_id
 	FROM recommendations WHERE author_id = ? AND is_deleted = 0 ORDER BY created_at DESC`
 
 	rows, err := DB.Query(query, authorID)

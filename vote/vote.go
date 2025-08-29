@@ -34,6 +34,7 @@ type Vote struct {
 
 // Session represents a voting session for a single submission.
 type Session struct {
+	VoteFileID   string `json:"vote_file_id"`
 	SubmissionID string `json:"submission_id"`
 	Votes        []Vote `json:"votes"`
 }
@@ -81,21 +82,21 @@ func NewManager() (*Manager, error) {
 }
 
 // getVoteFilePath returns the path to the JSON file for a given submission ID.
-func (m *Manager) getVoteFilePath(submissionID string) string {
-	return filepath.Join(m.path, fmt.Sprintf("vote-%s.json", submissionID))
+func (m *Manager) getVoteFilePath(voteFileID string) string {
+	return filepath.Join(m.path, fmt.Sprintf("vote-%s.json", voteFileID))
 }
 
 // LoadSession loads a voting session from a JSON file.
-func (m *Manager) LoadSession(submissionID string) (*Session, error) {
+func (m *Manager) LoadSession(voteFileID string) (*Session, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	filePath := m.getVoteFilePath(submissionID)
+	filePath := m.getVoteFilePath(voteFileID)
 	data, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			// If the file doesn't exist, create a new session
-			return &Session{SubmissionID: submissionID, Votes: []Vote{}}, nil
+			return &Session{VoteFileID: voteFileID, Votes: []Vote{}}, nil
 		}
 		return nil, err
 	}
@@ -117,6 +118,6 @@ func (m *Manager) SaveSession(session *Session) error {
 		return err
 	}
 
-	filePath := m.getVoteFilePath(session.SubmissionID)
+	filePath := m.getVoteFilePath(session.VoteFileID)
 	return ioutil.WriteFile(filePath, data, 0644)
 }

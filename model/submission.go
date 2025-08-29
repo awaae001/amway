@@ -20,4 +20,5 @@ type Submission struct {
 	Downvotes             int
 	IsAnonymous           bool
 	Status                string
+	VoteFileID            string
 }

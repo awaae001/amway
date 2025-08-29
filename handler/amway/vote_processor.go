@@ -20,11 +20,22 @@ func processVote(s *discordgo.Session, i *discordgo.InteractionCreate, submissio
 		return
 	}
 
-	session, err := voteManager.LoadSession(submissionID)
+	submission, err := db.GetSubmission(submissionID)
 	if err != nil {
-		log.Printf("Failed to load vote session for submission %s: %v", submissionID, err)
+		log.Printf("Failed to get submission %s: %v", submissionID, err)
 		return
 	}
+	if submission == nil {
+		log.Printf("Submission %s not found", submissionID)
+		return
+	}
+
+	session, err := voteManager.LoadSession(submission.VoteFileID)
+	if err != nil {
+		log.Printf("Failed to load vote session for submission %s (VoteFileID: %s): %v", submissionID, submission.VoteFileID, err)
+		return
+	}
+	session.SubmissionID = submissionID // Keep the original submission ID for logic
 
 	newVote := vote.Vote{
 		VoterID:   voterID,
