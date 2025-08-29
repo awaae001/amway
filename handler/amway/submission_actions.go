@@ -20,8 +20,24 @@ func VoteHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		return // Invalid custom ID format
 	}
 	voteType := vote.VoteType(parts[1])
-	submissionID := parts[2]
+	cacheID := parts[2] // This is now cacheID instead of submissionID
 	voterID := i.Member.User.ID
+
+	// Get submission data from cache
+	cacheData, found := utils.GetFromCache(cacheID)
+	if !found {
+		log.Printf("Cache data not found for cache ID: %s", cacheID)
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "投票请求已过期，请联系管理员",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+		return
+	}
+
+	submissionID := cacheData.SubmissionID
 
 	switch voteType {
 	case "remove":
@@ -33,14 +49,14 @@ func VoteHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			return
 		}
 
-		go processVoteRemoval(s, i, submissionID, voterID)
+		go processVoteRemoval(s, i, submissionID, voterID, cacheID)
 		return
 	case vote.Reject:
 		// Show a modal for the rejection reason
 		err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseModal,
 			Data: &discordgo.InteractionResponseData{
-				CustomID: "modal_reject:" + submissionID,
+				CustomID: "modal_reject:" + cacheID,
 				Title:    "输入不通过理由",
 				Components: []discordgo.MessageComponent{
 					discordgo.ActionsRow{
@@ -74,13 +90,7 @@ func VoteHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		return
 	}
 
-	// 从缓存中获取 replyToOriginal 的值
-	cacheData, found := utils.GetFromCache(submissionID)
-	if !found {
-		// Fallback or error handling
-		log.Printf("Cache data not found for submission ID: %s", submissionID)
-	}
-	go processVote(s, i, submissionID, voterID, voteType, "", found && cacheData.ReplyToOriginal)
+	go processVote(s, i, submissionID, voterID, voteType, "", cacheData.ReplyToOriginal, cacheID)
 }
 
 // ModalRejectHandler handles the submission of the rejection reason modal.
@@ -89,9 +99,25 @@ func ModalRejectHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	if len(parts) != 2 {
 		return // Invalid custom ID
 	}
-	submissionID := parts[1]
+	cacheID := parts[1]
 	voterID := i.Member.User.ID
 	reason := i.ModalSubmitData().Components[0].(*discordgo.ActionsRow).Components[0].(*discordgo.TextInput).Value
+
+	// Get submission data from cache
+	cacheData, found := utils.GetFromCache(cacheID)
+	if !found {
+		log.Printf("Cache data not found for cache ID: %s", cacheID)
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "投票请求已过期，请联系管理员",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+		return
+	}
+
+	submissionID := cacheData.SubmissionID
 
 	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseDeferredMessageUpdate,
@@ -101,20 +127,30 @@ func ModalRejectHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		return
 	}
 
-	// 从缓存中获取 replyToOriginal 的值
-	cacheData, found := utils.GetFromCache(submissionID)
-	if !found {
-		// Fallback or error handling
-		log.Printf("Cache data not found for submission ID: %s", submissionID)
-	}
-	go processVote(s, i, submissionID, voterID, vote.Reject, reason, found && cacheData.ReplyToOriginal)
+	go processVote(s, i, submissionID, voterID, vote.Reject, reason, cacheData.ReplyToOriginal, cacheID)
 }
 
 // SelectReasonHandler handles the selection of rejection reasons via buttons.
 func SelectReasonHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	parts := strings.Split(i.MessageComponentData().CustomID, ":")
-	submissionID := parts[1]
+	cacheID := parts[1]
 	reasonIndex, _ := strconv.Atoi(parts[2])
+
+	// Get submission data from cache
+	cacheData, found := utils.GetFromCache(cacheID)
+	if !found {
+		log.Printf("Cache data not found for cache ID: %s", cacheID)
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "投票请求已过期，请联系管理员",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+		return
+	}
+
+	submissionID := cacheData.SubmissionID
 
 	// Get the original reasons from the message component
 	var allReasons []string
@@ -136,15 +172,15 @@ func SelectReasonHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	// Toggle selection in cache
 	cachedReasons, _ := model.GetRejectionReasons(submissionID)
 	var newReasons []string
-	found := false
+	reasonFound := false
 	for _, r := range cachedReasons {
 		if r == selectedReason {
-			found = true
+			reasonFound = true
 		} else {
 			newReasons = append(newReasons, r)
 		}
 	}
-	if !found {
+	if !reasonFound {
 		newReasons = append(newReasons, selectedReason)
 	}
 	model.SetRejectionReasons(submissionID, newReasons)
@@ -154,7 +190,23 @@ func SelectReasonHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 
 // SendRejectionDMHandler handles sending the rejection DM to the user.
 func SendRejectionDMHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	submissionID := strings.Split(i.MessageComponentData().CustomID, ":")[1]
+	cacheID := strings.Split(i.MessageComponentData().CustomID, ":")[1]
+
+	// Get submission data from cache
+	cacheData, found := utils.GetFromCache(cacheID)
+	if !found {
+		log.Printf("Cache data not found for cache ID: %s", cacheID)
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "投票请求已过期，请联系管理员",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+		return
+	}
+
+	submissionID := cacheData.SubmissionID
 	reasons, ok := model.GetRejectionReasons(submissionID)
 	if !ok || len(reasons) == 0 {
 		// Respond with an ephemeral message if no reasons were selected
@@ -213,12 +265,25 @@ func SendRejectionDMHandler(s *discordgo.Session, i *discordgo.InteractionCreate
 
 	// Cleanup cache and update the original message
 	model.DeleteRejectionReasons(submissionID)
+	utils.RemoveFromCache(cacheID)
+	log.Printf("Removed cache entry %s after sending rejection DM for submission %s", cacheID, submissionID)
 	adminActionUpdate(s, i)
 }
 
 // adminActionUpdate updates the admin message, disabling components after action.
 func adminActionUpdate(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	submissionID := strings.Split(i.MessageComponentData().CustomID, ":")[1]
+	cacheID := strings.Split(i.MessageComponentData().CustomID, ":")[1]
+	
+	// Get submission data from cache (may fail if cache was already cleaned)
+	cacheData, found := utils.GetFromCache(cacheID)
+	var submissionID string
+	if found {
+		submissionID = cacheData.SubmissionID
+	} else {
+		// If cache is not found, we can't get the submissionID, but that's okay for DM sent scenario
+		log.Printf("Cache already cleaned for cacheID %s", cacheID)
+	}
+	
 	selectedReasons, _ := model.GetRejectionReasons(submissionID)
 
 	// Create a map for quick lookup of selected reasons
@@ -228,7 +293,7 @@ func adminActionUpdate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	}
 
 	// Disable all components if the DM has been sent
-	dmSent := i.MessageComponentData().CustomID == "send_rejection_dm:"+submissionID
+	dmSent := i.MessageComponentData().CustomID == "send_rejection_dm:"+cacheID
 
 	newComponents := []discordgo.MessageComponent{}
 	for _, comp := range i.Message.Components {
@@ -268,7 +333,7 @@ func adminActionUpdate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	})
 }
 
-func processVoteRemoval(s *discordgo.Session, i *discordgo.InteractionCreate, submissionID, voterID string) {
+func processVoteRemoval(s *discordgo.Session, i *discordgo.InteractionCreate, submissionID, voterID, cacheID string) {
 	voteManager, err := vote.NewManager()
 	if err != nil {
 		log.Printf("Failed to create vote manager: %v", err)
@@ -288,7 +353,7 @@ func processVoteRemoval(s *discordgo.Session, i *discordgo.InteractionCreate, su
 		}
 		updateReviewMessage(s, i, session)
 		// Also re-evaluate the vote result after removal
-		processVoteResult(s, i, session, false) // Assuming replyToOriginal is false for this action
+		processVoteResult(s, i, session, false, cacheID) // Assuming replyToOriginal is false for this action
 	}
 	// If not removed, do nothing, the user might have clicked by mistake without voting.
 	// The deferred update will just clear the "thinking" state.

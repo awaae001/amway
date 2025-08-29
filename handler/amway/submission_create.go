@@ -189,13 +189,18 @@ func ConfirmPostHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		},
 	}
 
+	embed := &discordgo.MessageEmbed{
+		Title:       "请确认您的投稿选项",
+		Description: "请选择：是否将您的安利作为回复发送到原帖下方？",
+		Color:       0x0099ff, // A nice blue color
+	}
+
 	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseUpdateMessage,
 		Data: &discordgo.InteractionResponseData{
-			Content:    "请选择：是否将您的安利作为回复发送到原帖下方？",
 			Flags:      discordgo.MessageFlagsEphemeral,
 			Components: components,
-			Embeds:     []*discordgo.MessageEmbed{},
+			Embeds:     []*discordgo.MessageEmbed{embed},
 		},
 	})
 
@@ -447,7 +452,7 @@ func FinalSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate
 		})
 		return
 	}
-	utils.RemoveFromCache(cacheID)
+	// Don't remove from cache yet - we need it for voting
 
 	finalContent := "🍻您的安利投稿已成功提交，正在等待审核"
 	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -500,7 +505,7 @@ func FinalSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate
 		OriginalAuthor:   cacheData.OriginalAuthor,
 		IsAnonymous:      isAnonymous,
 	}
-	SendSubmissionToReviewChannel(s, submission)
+	SendSubmissionToReviewChannel(s, submission, cacheID)
 }
 
 func HowToSubmitButtonHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {

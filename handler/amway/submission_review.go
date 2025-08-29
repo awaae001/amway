@@ -10,7 +10,7 @@ import (
 )
 
 // SendSubmissionToReviewChannel sends a submission to the review channel with appropriate formatting.
-func SendSubmissionToReviewChannel(s *discordgo.Session, submission *model.Submission) {
+func SendSubmissionToReviewChannel(s *discordgo.Session, submission *model.Submission, cacheID string) {
 	reviewChannelID := config.Cfg.AmwayBot.Amway.ReviewChannelID
 	if reviewChannelID == "" {
 		log.Printf("Review channel ID not configured")
@@ -51,31 +51,31 @@ func SendSubmissionToReviewChannel(s *discordgo.Session, submission *model.Submi
 				discordgo.Button{
 					Label:    "通过",
 					Style:    discordgo.SuccessButton,
-					CustomID: "vote:pass:" + submission.ID,
+					CustomID: "vote:pass:" + cacheID,
 					Emoji:    &discordgo.ComponentEmoji{Name: "✅"},
 				},
 				discordgo.Button{
 					Label:    "不通过",
 					Style:    discordgo.DangerButton,
-					CustomID: "vote:reject:" + submission.ID,
+					CustomID: "vote:reject:" + cacheID,
 					Emoji:    &discordgo.ComponentEmoji{Name: "❌"},
 				},
 				discordgo.Button{
 					Label:    "封禁",
 					Style:    discordgo.DangerButton,
-					CustomID: "vote:ban:" + submission.ID,
+					CustomID: "vote:ban:" + cacheID,
 					Emoji:    &discordgo.ComponentEmoji{Name: "🔨"},
 				},
 				discordgo.Button{
 					Label:    "精选",
 					Style:    discordgo.PrimaryButton,
-					CustomID: "vote:feature:" + submission.ID,
+					CustomID: "vote:feature:" + cacheID,
 					Emoji:    &discordgo.ComponentEmoji{Name: "🌟"},
 				},
 				discordgo.Button{
 					Label:    "悔票",
 					Style:    discordgo.SecondaryButton,
-					CustomID: "vote:remove:" + submission.ID,
+					CustomID: "vote:remove:" + cacheID,
 					Emoji:    &discordgo.ComponentEmoji{Name: "🗑️"},
 				},
 			},

@@ -136,14 +136,14 @@ func GetSubmissionByMessageID(messageID string) (*model.Submission, error) {
 func UpdateReactionCount(submissionID string, emojiName string, increment int) error {
 	var fieldToUpdate string
 	switch emojiName {
-	case "👍":
+	case "💯":
 		fieldToUpdate = "upvotes"
-	case "✅":
+	case "‼️":
 		fieldToUpdate = "questions"
-	case "❌":
+	case "🚫":
 		fieldToUpdate = "downvotes"
 	default:
-		return nil // Ignore other reactions
+		return nil
 	}
 
 	query := fmt.Sprintf("UPDATE recommendations SET %s = %s + ? WHERE id = ?", fieldToUpdate, fieldToUpdate)

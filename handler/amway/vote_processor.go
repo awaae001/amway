@@ -1,13 +1,11 @@
 package amway
 
 import (
-	"amway/config"
 	"amway/db"
 	"amway/handler/tools"
 	"amway/model"
 	"amway/utils"
 	"amway/vote"
-	"fmt"
 	"log"
 	"time"
 
@@ -15,7 +13,7 @@ import (
 )
 
 // processVote is the core logic for handling a vote submission.
-func processVote(s *discordgo.Session, i *discordgo.InteractionCreate, submissionID, voterID string, voteType vote.VoteType, reason string, replyToOriginal bool) {
+func processVote(s *discordgo.Session, i *discordgo.InteractionCreate, submissionID, voterID string, voteType vote.VoteType, reason string, replyToOriginal bool, cacheID string) {
 	voteManager, err := vote.NewManager()
 	if err != nil {
 		log.Printf("Failed to create vote manager: %v", err)
@@ -42,45 +40,14 @@ func processVote(s *discordgo.Session, i *discordgo.InteractionCreate, submissio
 	}
 
 	updateReviewMessage(s, i, session)
-	processVoteResult(s, i, session, replyToOriginal)
+	processVoteResult(s, i, session, replyToOriginal, cacheID)
 }
 
 // updateReviewMessage updates the review message with the current voting status.
 func updateReviewMessage(s *discordgo.Session, i *discordgo.InteractionCreate, session *vote.Session) {
+	voteEmbed := BuildVoteStatusEmbed(session)
+
 	originalEmbeds := i.Message.Embeds
-	var voteSummary string
-	for _, v := range session.Votes {
-		if v.Type == vote.Reject && v.Reason != "" {
-			voteSummary += fmt.Sprintf("<@%s>投了 `%s`\n> 理由: %s\n", v.VoterID, v.Type, v.Reason)
-		} else {
-			voteSummary += fmt.Sprintf("<@%s>投了 `%s`\n", v.VoterID, v.Type)
-		}
-	}
-
-	voteEmbed := &discordgo.MessageEmbed{
-		Title:       "当前投票状态",
-		Description: voteSummary,
-		Color:       0x00BFFF, // Deep sky blue
-	}
-
-	if len(session.Votes) == 2 {
-		voteCounts := make(map[vote.VoteType]int)
-		for _, v := range session.Votes {
-			voteCounts[v.Type]++
-			if v.Type == vote.Feature {
-				voteCounts[vote.Pass]++
-			}
-		}
-		if !tools.HasConsensus(voteCounts) {
-			voteEmbed.Fields = []*discordgo.MessageEmbedField{
-				{
-					Name:  "注意",
-					Value: "前两票出现差异，等待第三票决定最终结果。",
-				},
-			}
-		}
-	}
-
 	var updatedEmbeds []*discordgo.MessageEmbed
 	existingVoteEmbedIndex := -1
 	for idx, embed := range originalEmbeds {
@@ -106,7 +73,7 @@ func updateReviewMessage(s *discordgo.Session, i *discordgo.InteractionCreate, s
 }
 
 // processVoteResult checks the votes and takes final action if needed.
-func processVoteResult(s *discordgo.Session, i *discordgo.InteractionCreate, session *vote.Session, replyToOriginal bool) {
+func processVoteResult(s *discordgo.Session, i *discordgo.InteractionCreate, session *vote.Session, replyToOriginal bool, cacheID string) {
 	if len(session.Votes) < 2 {
 		return // Not enough votes to make a decision yet
 	}
@@ -191,7 +158,7 @@ func processVoteResult(s *discordgo.Session, i *discordgo.InteractionCreate, ses
 		handleStatusChange(s, submission, finalStatus, reviewerID, replyToOriginal)
 	}
 
-	finalizeReviewMessage(s, i, session.SubmissionID, finalStatus, rejectionReasons)
+	finalizeReviewMessage(s, i, session.SubmissionID, finalStatus, rejectionReasons, cacheID)
 }
 
 // handleStatusChange processes the consequences of a submission's final status.
@@ -216,63 +183,14 @@ func handleStatusChange(s *discordgo.Session, submission *model.Submission, fina
 
 	// If the submission was pending and is now approved or featured, send the publication messages.
 	if submission.Status == "pending" && (finalStatus == "approved" || finalStatus == "featured") {
-		publishMsg, err := sendPublicationMessage(s, submission)
-		if err != nil {
-			log.Printf("Error sending publication message for submission %s: %v", submission.ID, err)
-		} else {
-			if err := db.UpdateFinalAmwayMessageID(submission.ID, publishMsg.ID); err != nil {
-				log.Printf("Error updating final amway message ID for submission %s: %v", submission.ID, err)
-			}
-			if replyToOriginal {
-				sendNotificationToOriginalPost(s, submission, publishMsg)
-			}
-		}
+		PublishSubmission(s, submission, replyToOriginal)
 	}
 }
 
 // finalizeReviewMessage updates the original review message to show the final result.
-func finalizeReviewMessage(s *discordgo.Session, i *discordgo.InteractionCreate, submissionID, finalStatus string, reasons []string) {
-	finalEmbed := &discordgo.MessageEmbed{
-		Title:       "✅ 投票结束",
-		Description: fmt.Sprintf("对投稿 `%s` 的投票已完成。\n\n**最终结果:** `%s`", submissionID, finalStatus),
-		Color:       0x5865F2, // Discord Blurple
-	}
-
-	var components []discordgo.MessageComponent
-	if finalStatus == "rejected" && len(reasons) > 0 {
-		// Create a button for each reason, spread across multiple rows if necessary
-		reasonButtons := []discordgo.MessageComponent{}
-		for idx := range reasons {
-			reasonButtons = append(reasonButtons, discordgo.Button{
-				Label:    fmt.Sprintf("理由%d", idx+1),
-				Style:    discordgo.SecondaryButton,
-				CustomID: fmt.Sprintf("select_reason:%s:%d", submissionID, idx),
-			})
-		}
-
-		// Group buttons into ActionRows (max 5 per row)
-		const maxButtonsPerRow = 5
-		for i := 0; i < len(reasonButtons); i += maxButtonsPerRow {
-			end := i + maxButtonsPerRow
-			if end > len(reasonButtons) {
-				end = len(reasonButtons)
-			}
-			components = append(components, discordgo.ActionsRow{
-				Components: reasonButtons[i:end],
-			})
-		}
-
-		// Add the confirmation button in a new row
-		components = append(components, discordgo.ActionsRow{
-			Components: []discordgo.MessageComponent{
-				discordgo.Button{
-					Label:    "发送私信通知",
-					Style:    discordgo.PrimaryButton,
-					CustomID: "send_rejection_dm:" + submissionID,
-				},
-			},
-		})
-	}
+func finalizeReviewMessage(s *discordgo.Session, i *discordgo.InteractionCreate, submissionID, finalStatus string, reasons []string, cacheID string) {
+	finalEmbed := BuildFinalVoteEmbed(submissionID, finalStatus)
+	components := BuildRejectionComponents(cacheID, reasons)
 
 	embeds := i.Message.Embeds
 	embeds = append(embeds, finalEmbed)
@@ -284,128 +202,9 @@ func finalizeReviewMessage(s *discordgo.Session, i *discordgo.InteractionCreate,
 	if err != nil {
 		log.Printf("Failed to finalize review message for submission %s: %v", submissionID, err)
 	}
-}
 
-// sendPublicationMessage sends the approved submission to the publication channel.
-func sendPublicationMessage(s *discordgo.Session, submission *model.Submission) (*discordgo.Message, error) {
-	publishChannelID := config.Cfg.AmwayBot.Amway.PublishChannelID
-	if publishChannelID == "" {
-		return nil, fmt.Errorf("publish channel ID not configured")
-	}
-
-	var authorDisplay string
-	if submission.IsAnonymous {
-		authorDisplay = "一位热心的安利员"
-	} else {
-		authorDisplay = fmt.Sprintf("<@%s>", submission.UserID)
-	}
-	plainContent := fmt.Sprintf("-# 来自 %s 的安利\n## %s\n%s",
-		authorDisplay,
-		submission.RecommendTitle,
-		submission.RecommendContent,
-	)
-
-	embedFields := []*discordgo.MessageEmbedField{
-		{
-			Name:   "作者",
-			Value:  fmt.Sprintf("<@%s>", submission.OriginalAuthor),
-			Inline: true,
-		},
-		{
-			Name:   "帖子链接",
-			Value:  fmt.Sprintf("[%s](%s)", submission.OriginalTitle, submission.URL),
-			Inline: true,
-		},
-	}
-	if submission.OriginalPostTimestamp != "" {
-		embedFields = append(embedFields, &discordgo.MessageEmbedField{
-			Name:   "发帖日期",
-			Value:  submission.OriginalPostTimestamp,
-			Inline: true,
-		})
-	}
-
-	embed := &discordgo.MessageEmbed{
-		Title:  "详情信息",
-		Color:  0x2ea043,
-		Fields: embedFields,
-		Footer: &discordgo.MessageEmbedFooter{
-			Text: fmt.Sprintf("安利提交于: %s • ID: %s", time.Unix(submission.Timestamp, 0).Format("2006-01-02 15:04:05"), submission.ID),
-		},
-	}
-
-	publishMsg, err := s.ChannelMessageSendComplex(publishChannelID, &discordgo.MessageSend{
-		Content: plainContent,
-		Embed:   embed,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("error sending to publish channel: %w", err)
-	}
-
-	s.MessageReactionAdd(publishChannelID, publishMsg.ID, "👍")
-	s.MessageReactionAdd(publishChannelID, publishMsg.ID, "✅")
-	s.MessageReactionAdd(publishChannelID, publishMsg.ID, "❌")
-
-	return publishMsg, nil
-}
-
-// sendNotificationToOriginalPost sends a notification to the original post about the submission.
-func sendNotificationToOriginalPost(s *discordgo.Session, submission *model.Submission, publishMsg *discordgo.Message) {
-	originalChannelID, originalMessageID, err := utils.GetOriginalPostDetails(submission.URL)
-	if err != nil {
-		log.Printf("Error getting original post details for submission %s: %v", submission.ID, err)
-		return
-	}
-
-	amwayMessageURL := fmt.Sprintf("https://discord.com/channels/%s/%s/%s", submission.GuildID, publishMsg.ChannelID, publishMsg.ID)
-
-	var authorDisplay string
-	if submission.IsAnonymous {
-		authorDisplay = "一位热心的安利员"
-	} else {
-		authorDisplay = fmt.Sprintf("<@%s>", submission.UserID)
-	}
-	notificationContent := fmt.Sprintf("-# 来自 %s 的推荐，TA 觉得你的帖子很棒！\n## %s\n%s",
-		authorDisplay,
-		submission.RecommendTitle,
-		submission.RecommendContent,
-	)
-
-	notificationEmbed := &discordgo.MessageEmbed{
-		Title: "安利详情",
-		Color: 0x2ea043,
-		Fields: []*discordgo.MessageEmbedField{
-			{
-				Name:   "安利人",
-				Value:  authorDisplay,
-				Inline: true,
-			},
-			{
-				Name:   "时间",
-				Value:  time.Unix(submission.Timestamp, 0).Format("2006-01-02 15:04:05"),
-				Inline: true,
-			},
-			{
-				Name:  "安利消息链接",
-				Value: fmt.Sprintf("[点击查看](%s)", amwayMessageURL),
-			},
-		},
-	}
-
-	_, err = s.ChannelMessageSendComplex(originalChannelID, &discordgo.MessageSend{
-		Content: notificationContent,
-		Embed:   notificationEmbed,
-		Reference: &discordgo.MessageReference{
-			MessageID: originalMessageID,
-			ChannelID: originalChannelID,
-			GuildID:   submission.GuildID,
-		},
-	})
-	if err != nil {
-		if restErr, ok := err.(*discordgo.RESTError); ok && restErr.Message != nil && restErr.Message.Code == 30033 {
-			log.Printf("Skipping notification for submission %s: thread participants limit reached.", submission.ID)
-		} else {
-			log.Printf("Error sending notification to original post for submission %s: %v", submission.ID, err)
-		}
+	if finalStatus != "rejected" || len(reasons) == 0 {
+		utils.RemoveFromCache(cacheID)
+		log.Printf("Removed cache entry %s after voting completion for submission %s", cacheID, submissionID)
 	}
 }
