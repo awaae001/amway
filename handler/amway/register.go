@@ -3,6 +3,7 @@ package amway
 import (
 	"amway/command/def"
 	"amway/handler"
+	amway_admin "amway/handler/amway/admin"
 )
 
 // RegisterHandlers registers all handlers for the amway package.
@@ -12,7 +13,7 @@ func RegisterHandlers() {
 	handler.AddComponentHandler("how_to_submit_button", HowToSubmitButtonHandler)
 
 	// 管理员命令处理器
-	handler.AddCommandHandler(def.AmwayAdminCommand.Name, AmwayAdminCommandHandler)
+	handler.AddCommandHandler(def.AmwayAdminCommand.Name, amway_admin.AmwayAdminCommandHandler)
 	handler.AddCommandHandler(def.LookupCommand.Name, LookupCommandHandler)
 
 	// 新的两步投稿流程

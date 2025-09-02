@@ -61,5 +61,14 @@ var AmwayAdminCommand = &discordgo.ApplicationCommand{
 			Required:     false,
 			Autocomplete: true,
 		},
+		{
+			Type:        discordgo.ApplicationCommandOptionString,
+			Name:        "duration",
+			Description: "封禁时长 (例如 3d, 72h), 留空则为永久封禁",
+			NameLocalizations: map[discordgo.Locale]string{
+				discordgo.ChineseCN: "时长",
+			},
+			Required: false,
+		},
 	},
 }
