@@ -33,8 +33,12 @@ var AmwayAdminCommand = &discordgo.ApplicationCommand{
 					Value: "resend",
 				},
 				{
-					Name:  "解封",
-					Value: "unban",
+					Name:  "封禁",
+					Value: "ban",
+				},
+				{
+					Name:  "解除封禁",
+					Value: "lift_ban",
 				},
 			},
 		},

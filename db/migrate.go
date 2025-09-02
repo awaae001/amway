@@ -38,19 +38,6 @@ func createTables() {
 		log.Fatalf("Failed to create recommendations table: %v", err)
 	}
 
-	// SQL statement to create the 'banned_users' table.
-	createBannedUsersTableSQL := `
-	CREATE TABLE IF NOT EXISTS banned_users (
-		user_id TEXT PRIMARY KEY,
-		reason TEXT,
-		timestamp INTEGER NOT NULL
-	);`
-
-	_, err = DB.Exec(createBannedUsersTableSQL)
-	if err != nil {
-		log.Fatalf("Failed to create banned_users table: %v", err)
-	}
-
 	// SQL statement to create the 'users' table.
 	createUsersTableSQL := `
 	CREATE TABLE IF NOT EXISTS users (
@@ -104,6 +91,22 @@ func createTables() {
 	_, err = DB.Exec("ALTER TABLE recommendations ADD COLUMN vote_file_id TEXT")
 	if err != nil && !isColumnExistsError(err) {
 		log.Printf("Failed to add vote_file_id column, it might already exist: %v", err)
+	}
+
+	// Migration for ban system
+	_, err = DB.Exec("ALTER TABLE users ADD COLUMN ban_count INTEGER NOT NULL DEFAULT 0")
+	if err != nil && !isColumnExistsError(err) {
+		log.Printf("Failed to add ban_count column, it might already exist: %v", err)
+	}
+
+	_, err = DB.Exec("ALTER TABLE users ADD COLUMN is_permanently_banned BOOLEAN NOT NULL DEFAULT 0")
+	if err != nil && !isColumnExistsError(err) {
+		log.Printf("Failed to add is_permanently_banned column, it might already exist: %v", err)
+	}
+
+	_, err = DB.Exec("ALTER TABLE users ADD COLUMN banned_until INTEGER")
+	if err != nil && !isColumnExistsError(err) {
+		log.Printf("Failed to add banned_until column, it might already exist: %v", err)
 	}
 
 	log.Println("Database tables initialized successfully.")

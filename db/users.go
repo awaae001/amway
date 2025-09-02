@@ -9,15 +9,16 @@ import (
 // GetUserStats retrieves a user's stats from the users table.
 func GetUserStats(userID string) (*model.User, error) {
 	var user model.User
-	err := DB.QueryRow("SELECT user_id, featured_count, rejected_count FROM users WHERE user_id = ?", userID).Scan(&user.UserID, &user.FeaturedCount, &user.RejectedCount)
+	err := DB.QueryRow("SELECT user_id, featured_count, rejected_count, ban_count, is_permanently_banned, banned_until FROM users WHERE user_id = ?", userID).Scan(&user.UserID, &user.FeaturedCount, &user.RejectedCount, &user.BanCount, &user.IsPermanentlyBanned, &user.BannedUntil)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			// If the user is not in the table, create a new record
-			_, err = DB.Exec("INSERT INTO users(user_id, featured_count, rejected_count) VALUES(?, 0, 0)", userID)
+			_, err = DB.Exec("INSERT INTO users(user_id) VALUES(?)", userID)
 			if err != nil {
 				return nil, err
 			}
-			return &model.User{UserID: userID, FeaturedCount: 0, RejectedCount: 0}, nil
+			// Return a new user struct with default zero values
+			return &model.User{UserID: userID}, nil
 		}
 		return nil, err
 	}
@@ -36,53 +37,53 @@ func IncrementRejectedCount(userID string) error {
 	return err
 }
 
-// IsUserBanned checks if a user is in the banned_users table.
-func IsUserBanned(userID string) (bool, error) {
-	var id string
-	err := DB.QueryRow("SELECT user_id FROM banned_users WHERE user_id = ?", userID).Scan(&id)
+// CheckUserBanStatus checks if a user is currently banned.
+// It returns two booleans: isBanned (true if banned temporarily or permanently)
+// and isPermanent (true if the ban is permanent).
+func CheckUserBanStatus(userID string) (isBanned bool, isPermanent bool, err error) {
+	user, err := GetUserStats(userID)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return false, nil // User is not banned
-		}
-		return false, err // An actual error occurred
+		return false, false, err
 	}
-	return true, nil // User is found in the banned list
+
+	if user.IsPermanentlyBanned {
+		return true, true, nil
+	}
+
+	if user.BannedUntil.Valid && user.BannedUntil.Int64 > time.Now().Unix() {
+		return true, false, nil
+	}
+
+	return false, false, nil
 }
 
-// BanUser adds a user to the banned_users table.
-func BanUser(userID, reason string) error {
-	_, err := DB.Exec("INSERT OR REPLACE INTO banned_users(user_id, reason, timestamp) VALUES(?, ?, ?)", userID, reason, time.Now().Unix())
-	return err
-}
-
-// UnbanUser removes a user from the banned_users table.
-func UnbanUser(userID string) error {
-	_, err := DB.Exec("DELETE FROM banned_users WHERE user_id = ?", userID)
-	return err
-}
-
-// BannedUser represents a user in the banned_users table.
-type BannedUser struct {
-	ID        string
-	Reason    string
-	Timestamp int64
-}
-
-// GetBannedUsers retrieves all users from the banned_users table.
-func GetBannedUsers() ([]BannedUser, error) {
-	rows, err := DB.Query("SELECT user_id, reason, timestamp FROM banned_users")
+// ApplyBan applies a temporary ban to a user and increments their ban counter.
+// It returns the user's updated stats.
+func ApplyBan(userID string, duration time.Duration) (*model.User, error) {
+	// Ensure the user exists in the database.
+	_, err := GetUserStats(userID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	var users []BannedUser
-	for rows.Next() {
-		var u BannedUser
-		if err := rows.Scan(&u.ID, &u.Reason, &u.Timestamp); err != nil {
-			return nil, err
-		}
-		users = append(users, u)
+	expiresAt := time.Now().Add(duration).Unix()
+	_, err = DB.Exec("UPDATE users SET ban_count = ban_count + 1, banned_until = ? WHERE user_id = ?", expiresAt, userID)
+	if err != nil {
+		return nil, err
 	}
-	return users, nil
+
+	// Return the updated user object.
+	return GetUserStats(userID)
+}
+
+// ApplyPermanentBan permanently bans a user.
+func ApplyPermanentBan(userID string) error {
+	_, err := DB.Exec("UPDATE users SET is_permanently_banned = 1 WHERE user_id = ?", userID)
+	return err
+}
+
+// LiftBan removes any temporary or permanent bans from a user.
+func LiftBan(userID string) error {
+	_, err := DB.Exec("UPDATE users SET banned_until = NULL, is_permanently_banned = 0 WHERE user_id = ?", userID)
+	return err
 }

@@ -6,6 +6,7 @@ import (
 	"amway/model"
 	"amway/utils"
 	"amway/vote"
+	"fmt"
 	"log"
 	"time"
 
@@ -165,15 +166,25 @@ func processVoteResult(s *discordgo.Session, i *discordgo.InteractionCreate, ses
 		}
 	}
 
+	var banReason string
+	if finalStatus == "banned" {
+		for _, v := range session.Votes {
+			if v.Type == vote.Ban && v.Reason != "" {
+				banReason = v.Reason // Just get the last ban reason
+				break
+			}
+		}
+	}
+
 	if finalStatus != oldStatus {
-		handleStatusChange(s, submission, finalStatus, reviewerID, replyToOriginal)
+		handleStatusChange(s, submission, finalStatus, reviewerID, replyToOriginal, banReason)
 	}
 
 	finalizeReviewMessage(s, i, session.SubmissionID, finalStatus, rejectionReasons, cacheID)
 }
 
 // handleStatusChange processes the consequences of a submission's final status.
-func handleStatusChange(s *discordgo.Session, submission *model.Submission, finalStatus, reviewerID string, replyToOriginal bool) {
+func handleStatusChange(s *discordgo.Session, submission *model.Submission, finalStatus, reviewerID string, replyToOriginal bool, banReason string) {
 	// Update user stats based on the new status
 	switch finalStatus {
 	case "featured":
@@ -181,7 +192,26 @@ func handleStatusChange(s *discordgo.Session, submission *model.Submission, fina
 	case "rejected":
 		db.IncrementRejectedCount(submission.UserID)
 	case "banned":
-		db.BanUser(submission.UserID, "Banned through submission voting.")
+		// Apply a 3-day temporary ban and get the updated user stats.
+		updatedUser, err := db.ApplyBan(submission.UserID, 3*24*time.Hour)
+		if err != nil {
+			log.Printf("Failed to apply temporary ban to user %s: %v", submission.UserID, err)
+		} else {
+			// Check if the user has reached the permanent ban threshold.
+			if updatedUser.BanCount >= 3 {
+				err := db.ApplyPermanentBan(submission.UserID)
+				if err != nil {
+					log.Printf("Failed to apply permanent ban to user %s: %v", submission.UserID, err)
+				} else {
+					// Notify the user about the permanent ban.
+					sendBanNotification(s, submission.UserID, true, updatedUser.BanCount, banReason)
+				}
+			} else {
+				// Notify the user about the temporary ban.
+				sendBanNotification(s, submission.UserID, false, updatedUser.BanCount, banReason)
+			}
+		}
+
 		db.IncrementRejectedCount(submission.UserID) // Banned submissions are also considered rejected
 		finalStatus = "rejected"                     // The submission status itself is 'rejected'
 	}
@@ -224,5 +254,26 @@ func finalizeReviewMessage(s *discordgo.Session, i *discordgo.InteractionCreate,
 		utils.RemoveFromCache(cacheID)
 		model.DeleteAvailableRejectionReasons(submissionID) // Clean up the new cache as well
 		log.Printf("Removed cache entry %s after voting completion for submission %s", cacheID, submissionID)
+	}
+}
+
+// sendBanNotification sends a direct message to a user about their ban status.
+func sendBanNotification(s *discordgo.Session, userID string, isPermanent bool, banCount int, reason string) {
+	channel, err := s.UserChannelCreate(userID)
+	if err != nil {
+		log.Printf("Failed to create DM channel for user %s: %v", userID, err)
+		return
+	}
+
+	var message string
+	if isPermanent {
+		message = fmt.Sprintf("您好，由于您在安利墙的行为，您的账户已被安利系统拒接投稿权限。这是您的第 %d 次封禁。\n\n**封禁理由**\n%s", banCount, reason)
+	} else {
+		message = fmt.Sprintf("您好，由于您在安利墙的行为，您的账户已被临时封禁3天。这是您的第 %d 次封禁。累计3次封禁将被永久拒绝投稿\n\n**封禁理由**\n%s", banCount, reason)
+	}
+
+	_, err = s.ChannelMessageSend(channel.ID, message)
+	if err != nil {
+		log.Printf("Failed to send ban notification to user %s: %v", userID, err)
 	}
 }

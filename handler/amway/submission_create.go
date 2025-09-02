@@ -13,7 +13,7 @@ import (
 )
 
 func CreateSubmissionButtonHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	banned, err := db.IsUserBanned(i.Member.User.ID)
+	banned, _, err := db.CheckUserBanStatus(i.Member.User.ID)
 	if err != nil {
 		fmt.Printf("Error checking if user is banned: %v\n", err)
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -400,7 +400,7 @@ func ContentSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCrea
 }
 
 func FinalSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	banned, err := db.IsUserBanned(i.Member.User.ID)
+	banned, _, err := db.CheckUserBanStatus(i.Member.User.ID)
 	if err != nil {
 		fmt.Printf("Error checking if user is banned: %v\n", err)
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{

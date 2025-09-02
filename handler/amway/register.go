@@ -26,6 +26,7 @@ func RegisterHandlers() {
 	// 审核相关处理器
 	handler.AddComponentHandlerPrefix("vote:", VoteHandler)
 	handler.AddModalHandler("modal_reject", ModalRejectHandler)
+	handler.AddModalHandler("modal_ban", ModalBanHandler)
 
 	// 私信通知相关处理器
 	handler.AddComponentHandlerPrefix("select_reason:", SelectReasonHandler)

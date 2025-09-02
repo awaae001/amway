@@ -13,11 +13,6 @@ import (
 
 // AmwayAdminCommandHandler handles the /amway_admin command
 func AmwayAdminCommandHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	// 自动补全处理
-	if i.Type == discordgo.InteractionApplicationCommandAutocomplete {
-		handleAdminAutocomplete(s, i)
-		return
-	}
 
 	// 立即响应交互
 	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -64,8 +59,10 @@ func AmwayAdminCommandHandler(s *discordgo.Session, i *discordgo.InteractionCrea
 			handleDeleteSubmission(s, i, input)
 		case "resend":
 			handleResendSubmission(s, i, input)
-		case "unban":
-			handleUnbanUser(s, i, userID)
+		case "ban":
+			handleBanUser(s, i, userID)
+		case "lift_ban":
+			handleLiftBan(s, i, userID)
 		default:
 			s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 				Content: utils.StringPtr("❌ 未知的操作类型 "),
@@ -339,73 +336,46 @@ func handleResendSubmission(s *discordgo.Session, i *discordgo.InteractionCreate
 	})
 }
 
-// handleUnbanUser 解封用户
-func handleUnbanUser(s *discordgo.Session, i *discordgo.InteractionCreate, userID string) {
+// handleBanUser permanently bans a user.
+func handleBanUser(s *discordgo.Session, i *discordgo.InteractionCreate, userID string) {
 	if userID == "" {
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-			Content: utils.StringPtr("❌ 请提供需要解封的用户ID "),
+			Content: utils.StringPtr("❌ 请提供需要封禁的用户ID "),
 		})
 		return
 	}
 
-	err := db.UnbanUser(userID)
+	err := db.ApplyPermanentBan(userID)
 	if err != nil {
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-			Content: utils.StringPtr(fmt.Sprintf("❌ 解封用户 %s 失败：%v", userID, err)),
+			Content: utils.StringPtr(fmt.Sprintf("❌ 封禁用户 %s 失败：%v", userID, err)),
 		})
 		return
 	}
 
 	s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-		Content: utils.StringPtr(fmt.Sprintf("✅ 用户 <@%s> 已成功解封 ", userID)),
+		Content: utils.StringPtr(fmt.Sprintf("✅ 用户 <@%s> 已被永久封禁 ", userID)),
 	})
 }
 
-// handleAdminAutocomplete 处理管理员命令的自动补全
-func handleAdminAutocomplete(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	options := i.ApplicationCommandData().Options
-	var action string
-	var focusedOption *discordgo.ApplicationCommandInteractionDataOption
-
-	// 找到 action 和当前聚焦的选项
-	for _, opt := range options {
-		if opt.Name == "action" {
-			action = opt.StringValue()
-		}
-		if opt.Focused {
-			focusedOption = opt
-		}
-	}
-
-	// 如果 action 是 "unban" 并且聚焦于 "user_id"，则提供建议
-	if action == "unban" && focusedOption != nil && focusedOption.Name == "user_id" {
-		bannedUsers, err := db.GetBannedUsers()
-		if err != nil {
-			log.Printf("Error getting banned users: %v", err)
-			return
-		}
-
-		choices := []*discordgo.ApplicationCommandOptionChoice{}
-		for _, user := range bannedUsers {
-			// 获取用户信息以显示昵称
-			discordUser, err := s.User(user.ID)
-			displayName := user.ID
-			if err == nil {
-				displayName = fmt.Sprintf("%s (%s)", discordUser.Username, user.ID)
-			}
-
-			choices = append(choices, &discordgo.ApplicationCommandOptionChoice{
-				Name:  displayName,
-				Value: user.ID,
-			})
-		}
-
-		// 发送自动补全响应
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionApplicationCommandAutocompleteResult,
-			Data: &discordgo.InteractionResponseData{
-				Choices: choices,
-			},
+// handleLiftBan removes a ban from a user.
+func handleLiftBan(s *discordgo.Session, i *discordgo.InteractionCreate, userID string) {
+	if userID == "" {
+		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+			Content: utils.StringPtr("❌ 请提供需要解除封禁的用户ID "),
 		})
+		return
 	}
+
+	err := db.LiftBan(userID)
+	if err != nil {
+		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+			Content: utils.StringPtr(fmt.Sprintf("❌ 解除用户 %s 的封禁失败：%v", userID, err)),
+		})
+		return
+	}
+
+	s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+		Content: utils.StringPtr(fmt.Sprintf("✅ 用户 <@%s> 的封禁已解除 ", userID)),
+	})
 }

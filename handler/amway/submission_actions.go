@@ -79,6 +79,34 @@ func VoteHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			log.Printf("Error responding with modal: %v", err)
 		}
 		return // Stop processing, wait for modal submission
+	case vote.Ban:
+		// Show a modal for the ban reason
+		err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseModal,
+			Data: &discordgo.InteractionResponseData{
+				CustomID: "modal_ban:" + cacheID,
+				Title:    "输入封禁理由",
+				Components: []discordgo.MessageComponent{
+					discordgo.ActionsRow{
+						Components: []discordgo.MessageComponent{
+							discordgo.TextInput{
+								CustomID:    "reason",
+								Label:       "封禁理由",
+								Style:       discordgo.TextInputParagraph,
+								Placeholder: "请输入封禁用户的理由...",
+								Required:    true,
+								MinLength:   8,
+								MaxLength:   128,
+							},
+						},
+					},
+				},
+			},
+		})
+		if err != nil {
+			log.Printf("Error responding with ban modal: %v", err)
+		}
+		return // Stop processing, wait for modal submission
 	}
 
 	// For other vote types, defer the update and process in the background.
@@ -363,4 +391,41 @@ func processVoteRemoval(s *discordgo.Session, i *discordgo.InteractionCreate, su
 	}
 	// If not removed, do nothing, the user might have clicked by mistake without voting.
 	// The deferred update will just clear the "thinking" state.
+}
+
+// ModalBanHandler handles the submission of the ban reason modal.
+func ModalBanHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	parts := strings.Split(i.ModalSubmitData().CustomID, ":")
+	if len(parts) != 2 {
+		return // Invalid custom ID
+	}
+	cacheID := parts[1]
+	voterID := i.Member.User.ID
+	reason := i.ModalSubmitData().Components[0].(*discordgo.ActionsRow).Components[0].(*discordgo.TextInput).Value
+
+	// Get submission data from cache
+	cacheData, found := utils.GetFromCache(cacheID)
+	if !found {
+		log.Printf("Cache data not found for cache ID: %s", cacheID)
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "投票请求已过期，请联系管理员",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+		return
+	}
+
+	submissionID := cacheData.SubmissionID
+
+	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredMessageUpdate,
+	})
+	if err != nil {
+		fmt.Printf("Error sending deferred response: %v\n", err)
+		return
+	}
+
+	go processVote(s, i, submissionID, voterID, vote.Ban, reason, cacheData.ReplyToOriginal, cacheID)
 }
