@@ -16,12 +16,14 @@ func RegisterHandlers() {
 	handler.AddCommandHandler(def.AmwayAdminCommand.Name, amway_admin.AmwayAdminCommandHandler)
 	handler.AddCommandHandler(def.LookupCommand.Name, LookupCommandHandler)
 
-	// 新的两步投稿流程
+	// 两步投稿流程
 	handler.AddModalHandler("submission_link_modal", LinkSubmissionHandler)
 	handler.AddComponentHandler("confirm_post", ConfirmPostHandler)
 	handler.AddComponentHandler("cancel_submission", CancelSubmissionHandler)
+	handler.AddComponentHandler("edit_submission_link", EditSubmissionLinkHandler)
 	handler.AddComponentHandlerPrefix("reply_choice", ReplyChoiceHandler)
 	handler.AddModalHandler("submission_content_modal", ContentSubmissionHandler)
+	handler.AddComponentHandlerPrefix("edit_submission_content", EditSubmissionContentHandler)
 	handler.AddComponentHandler("final_submit", FinalSubmissionHandler)
 
 	// 审核相关处理器
