@@ -10,7 +10,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-func CreateSubmissionButtonHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func validateUserBanStatus(s *discordgo.Session, i *discordgo.InteractionCreate) bool {
 	banned, _, err := db.CheckUserBanStatus(i.Member.User.ID)
 	if err != nil {
 		fmt.Printf("Error checking if user is banned: %v\n", err)
@@ -21,7 +21,7 @@ func CreateSubmissionButtonHandler(s *discordgo.Session, i *discordgo.Interactio
 				Flags:   discordgo.MessageFlagsEphemeral,
 			},
 		})
-		return
+		return false
 	}
 
 	if banned {
@@ -32,10 +32,58 @@ func CreateSubmissionButtonHandler(s *discordgo.Session, i *discordgo.Interactio
 				Flags:   discordgo.MessageFlagsEphemeral,
 			},
 		})
+		return false
+	}
+	
+	return true
+}
+
+func parseAndValidateCustomID(s *discordgo.Session, i *discordgo.InteractionCreate, customID string, minParts int) ([]string, bool) {
+	parts := strings.Split(customID, ":")
+	if len(parts) < minParts {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "数据格式错误，请重新开始投稿流程",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+		return nil, false
+	}
+	return parts, true
+}
+
+func validateCacheData(s *discordgo.Session, i *discordgo.InteractionCreate, cacheID string) (model.SubmissionData, bool) {
+	cacheData, found := utils.GetFromCache(cacheID)
+	if !found {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "您的投稿请求已过期，请重新发起",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+		return model.SubmissionData{}, false
+	}
+	return cacheData, true
+}
+
+func buildErrorResponse(content string) *discordgo.InteractionResponse {
+	return &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: content,
+			Flags:   discordgo.MessageFlagsEphemeral,
+		},
+	}
+}
+
+func CreateSubmissionButtonHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	if !validateUserBanStatus(s, i) {
 		return
 	}
 
-	err = s.InteractionRespond(i.Interaction, BuildSubmissionLinkModal())
+	err := s.InteractionRespond(i.Interaction, BuildSubmissionLinkModal())
 	if err != nil {
 		fmt.Printf("Error creating modal: %v\n", err)
 	}
@@ -94,15 +142,8 @@ func LinkSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate)
 
 func ConfirmPostHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	customID := i.MessageComponentData().CustomID
-	parts := strings.Split(customID, ":")
-	if len(parts) < 4 {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "数据格式错误，请重新开始投稿流程",
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
+	parts, ok := parseAndValidateCustomID(s, i, customID, 4)
+	if !ok {
 		return
 	}
 
@@ -134,15 +175,8 @@ func ConfirmPostHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 
 func ReplyChoiceHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	customID := i.MessageComponentData().CustomID
-	parts := strings.Split(customID, ":")
-	if len(parts) < 3 {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "数据格式错误，请重新开始投稿流程",
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
+	parts, ok := parseAndValidateCustomID(s, i, customID, 3)
+	if !ok {
 		return
 	}
 
@@ -150,15 +184,8 @@ func ReplyChoiceHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	replyToOriginalStr := parts[2]
 	replyToOriginal := replyToOriginalStr == "true"
 
-	cacheData, found := utils.GetFromCache(cacheID)
-	if !found {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "您的投稿请求已过期，请重新发起",
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
+	cacheData, ok := validateCacheData(s, i, cacheID)
+	if !ok {
 		return
 	}
 
@@ -188,29 +215,14 @@ func CancelSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreat
 func ContentSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	data := i.ModalSubmitData()
 	customID := data.CustomID
-	parts := strings.Split(customID, ":")
-
-	if len(parts) < 2 {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "数据格式错误，请重新开始投稿流程",
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
+	parts, ok := parseAndValidateCustomID(s, i, customID, 2)
+	if !ok {
 		return
 	}
 
 	cacheID := parts[1]
-	cacheData, found := utils.GetFromCache(cacheID)
-	if !found {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "您的投稿请求已过期，请重新发起",
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
+	cacheData, ok := validateCacheData(s, i, cacheID)
+	if !ok {
 		return
 	}
 
@@ -261,40 +273,13 @@ func ContentSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCrea
 }
 
 func FinalSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	banned, _, err := db.CheckUserBanStatus(i.Member.User.ID)
-	if err != nil {
-		fmt.Printf("Error checking if user is banned: %v\n", err)
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "无法处理您的请求，请稍后再试。",
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
-		return
-	}
-
-	if banned {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "您已被禁止投稿",
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
+	if !validateUserBanStatus(s, i) {
 		return
 	}
 
 	customID := i.MessageComponentData().CustomID
-	parts := strings.Split(customID, ":")
-	if len(parts) < 3 {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "处理您的请求时数据格式错误，请重新开始投稿",
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
+	parts, ok := parseAndValidateCustomID(s, i, customID, 3)
+	if !ok {
 		return
 	}
 
@@ -302,20 +287,13 @@ func FinalSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate
 	isAnonymousStr := parts[2]
 	isAnonymous := isAnonymousStr == "true"
 
-	cacheData, found := utils.GetFromCache(cacheID)
-	if !found {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "您的投稿请求已过期，请重新发起",
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
+	cacheData, ok := validateCacheData(s, i, cacheID)
+	if !ok {
 		return
 	}
 	// Don't remove from cache yet - we need it for voting
 
-	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseUpdateMessage,
 		Data: BuildFinalSuccessResponseData(),
 	})
@@ -365,28 +343,14 @@ func FinalSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate
 
 func EditSubmissionContentHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	customID := i.MessageComponentData().CustomID
-	parts := strings.Split(customID, ":")
-	if len(parts) < 2 {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "数据格式错误，请重新开始投稿流程",
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
+	parts, ok := parseAndValidateCustomID(s, i, customID, 2)
+	if !ok {
 		return
 	}
 
 	cacheID := parts[1]
-	cacheData, found := utils.GetFromCache(cacheID)
-	if !found {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "您的投稿请求已过期，请重新发起",
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
+	cacheData, ok := validateCacheData(s, i, cacheID)
+	if !ok {
 		return
 	}
 
