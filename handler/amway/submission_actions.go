@@ -9,6 +9,7 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -293,28 +294,31 @@ func SendRejectionDMHandler(s *discordgo.Session, i *discordgo.InteractionCreate
 
 // adminActionUpdate updates the admin message, disabling components after action.
 func adminActionUpdate(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	cacheID := strings.Split(i.MessageComponentData().CustomID, ":")[1]
+	customIDParts := strings.Split(i.MessageComponentData().CustomID, ":")
+	action := customIDParts[0]
+	cacheID := customIDParts[1]
 
-	// Get submission data from cache (may fail if cache was already cleaned)
 	cacheData, found := utils.GetFromCache(cacheID)
 	var submissionID string
 	if found {
 		submissionID = cacheData.SubmissionID
 	} else {
-		// If cache is not found, we can't get the submissionID, but that's okay for DM sent scenario
 		log.Printf("Cache already cleaned for cacheID %s", cacheID)
 	}
 
-	selectedReasons, _ := model.GetRejectionReasons(submissionID)
+	selectedRejectionReasons, _ := model.GetRejectionReasons(submissionID)
+	selectedBanReasons, _ := model.GetBanReasons(submissionID)
 
-	// Create a map for quick lookup of selected reasons
-	isSelected := make(map[string]bool)
-	for _, r := range selectedReasons {
-		isSelected[r] = true
+	isRejectionSelected := make(map[string]bool)
+	for _, r := range selectedRejectionReasons {
+		isRejectionSelected[r] = true
+	}
+	isBanSelected := make(map[string]bool)
+	for _, r := range selectedBanReasons {
+		isBanSelected[r] = true
 	}
 
-	// Disable all components if the DM has been sent
-	dmSent := i.MessageComponentData().CustomID == "send_rejection_dm:"+cacheID
+	dmSent := action == "send_rejection_dm" || action == "send_ban_dm"
 
 	newComponents := []discordgo.MessageComponent{}
 	for _, comp := range i.Message.Components {
@@ -329,15 +333,21 @@ func adminActionUpdate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 				continue
 			}
 
-			// Clone the button to modify it
 			newButton := *button
 			if strings.HasPrefix(newButton.CustomID, "select_reason:") {
-				if isSelected[newButton.Label] {
-					newButton.Style = discordgo.SuccessButton // Green for selected
+				if isRejectionSelected[newButton.Label] {
+					newButton.Style = discordgo.SuccessButton
 				} else {
-					newButton.Style = discordgo.SecondaryButton // Gray for not selected
+					newButton.Style = discordgo.SecondaryButton
+				}
+			} else if strings.HasPrefix(newButton.CustomID, "select_ban_reason:") {
+				if isBanSelected[newButton.Label] {
+					newButton.Style = discordgo.SuccessButton
+				} else {
+					newButton.Style = discordgo.SecondaryButton
 				}
 			}
+
 			if dmSent {
 				newButton.Disabled = true
 			}
@@ -389,8 +399,6 @@ func processVoteRemoval(s *discordgo.Session, i *discordgo.InteractionCreate, su
 		// Also re-evaluate the vote result after removal
 		processVoteResult(s, i, session, false, cacheID) // Assuming replyToOriginal is false for this action
 	}
-	// If not removed, do nothing, the user might have clicked by mistake without voting.
-	// The deferred update will just clear the "thinking" state.
 }
 
 // ModalBanHandler handles the submission of the ban reason modal.
@@ -428,4 +436,100 @@ func ModalBanHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	}
 
 	go processVote(s, i, submissionID, voterID, vote.Ban, reason, cacheData.ReplyToOriginal, cacheID)
+}
+
+// SelectBanReasonHandler handles the selection of ban reasons via buttons.
+func SelectBanReasonHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	parts := strings.Split(i.MessageComponentData().CustomID, ":")
+	cacheID := parts[1]
+	reasonIndex, _ := strconv.Atoi(parts[2])
+
+	cacheData, found := utils.GetFromCache(cacheID)
+	if !found {
+		// Handle expired interaction
+		return
+	}
+	submissionID := cacheData.SubmissionID
+
+	allReasons, ok := model.GetAvailableBanReasons(submissionID)
+	if !ok || len(allReasons) <= reasonIndex {
+		return
+	}
+	selectedReason := allReasons[reasonIndex]
+
+	cachedReasons, _ := model.GetBanReasons(submissionID)
+	var newReasons []string
+	reasonFound := false
+	for _, r := range cachedReasons {
+		if r == selectedReason {
+			reasonFound = true
+			break
+		}
+	}
+	if !reasonFound {
+		// For ban reasons, we only allow one to be selected.
+		newReasons = []string{selectedReason}
+	} else {
+		// Deselect
+		newReasons = []string{}
+	}
+
+	model.SetBanReasons(submissionID, newReasons)
+	adminActionUpdate(s, i)
+}
+
+// SendBanDMHandler handles sending the ban DM to the user.
+func SendBanDMHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	cacheID := strings.Split(i.MessageComponentData().CustomID, ":")[1]
+
+	cacheData, found := utils.GetFromCache(cacheID)
+	if !found {
+		// Handle expired interaction
+		return
+	}
+	submissionID := cacheData.SubmissionID
+	reasons, ok := model.GetBanReasons(submissionID)
+	if !ok || len(reasons) == 0 {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "请先选择一个“封禁”的理由。",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+		return
+	}
+	selectedReason := reasons[0] // We only allow one reason for ban
+
+	submission, err := db.GetSubmission(submissionID)
+	if err != nil {
+		log.Printf("Could not get submission %s for ban DM: %v", submissionID, err)
+		return
+	}
+
+	// This logic is moved from handleStatusChange
+	updatedUser, err := db.ApplyBan(submission.UserID, 3*24*time.Hour)
+	if err != nil {
+		log.Printf("Failed to apply temporary ban to user %s: %v", submission.UserID, err)
+		return
+	}
+
+	isPermanent := false
+	if updatedUser.BanCount >= 3 {
+		err := db.ApplyPermanentBan(submission.UserID)
+		if err != nil {
+			log.Printf("Failed to apply permanent ban to user %s: %v", submission.UserID, err)
+		} else {
+			isPermanent = true
+		}
+	}
+
+	sendBanNotification(s, submission.UserID, isPermanent, updatedUser.BanCount, selectedReason)
+
+	// Cleanup cache and update the original message
+	model.DeleteBanReasons(submissionID)
+	model.DeleteAvailableBanReasons(submissionID)
+	utils.RemoveFromCache(cacheID)
+	log.Printf("Removed cache entry %s after sending ban DM for submission %s", cacheID, submissionID)
+	adminActionUpdate(s, i)
 }

@@ -18,7 +18,7 @@ import (
 func BuildVoteStatusEmbed(session *vote.Session) *discordgo.MessageEmbed {
 	var voteSummary string
 	for _, v := range session.Votes {
-		if v.Type == vote.Reject && v.Reason != "" {
+		if (v.Type == vote.Reject || v.Type == vote.Ban) && v.Reason != "" {
 			voteSummary += fmt.Sprintf("<@%s>投了 `%s`\n> 理由: %s\n", v.VoterID, v.Type, v.Reason)
 		} else {
 			voteSummary += fmt.Sprintf("<@%s>投了 `%s`\n", v.VoterID, v.Type)
@@ -90,6 +90,48 @@ func BuildRejectionComponents(cacheID string, reasons []string) []discordgo.Mess
 					Label:    "发送私信通知",
 					Style:    discordgo.PrimaryButton,
 					CustomID: "send_rejection_dm:" + cacheID,
+				},
+			},
+		})
+	}
+	return components
+}
+
+// BuildBanComponents builds the buttons for sending ban reasons.
+func BuildBanComponents(cacheID string, reasons []string) []discordgo.MessageComponent {
+	var components []discordgo.MessageComponent
+	if len(reasons) > 0 {
+		var reasonButtons []discordgo.MessageComponent
+		for idx, reason := range reasons {
+			// Truncate reason for button label if it's too long
+			label := reason
+			if len(label) > 20 {
+				label = label[:17] + "..."
+			}
+			reasonButtons = append(reasonButtons, discordgo.Button{
+				Label:    label,
+				Style:    discordgo.SecondaryButton,
+				CustomID: fmt.Sprintf("select_ban_reason:%s:%d", cacheID, idx),
+			})
+		}
+
+		const maxButtonsPerRow = 5
+		for i := 0; i < len(reasonButtons); i += maxButtonsPerRow {
+			end := i + maxButtonsPerRow
+			if end > len(reasonButtons) {
+				end = len(reasonButtons)
+			}
+			components = append(components, discordgo.ActionsRow{
+				Components: reasonButtons[i:end],
+			})
+		}
+
+		components = append(components, discordgo.ActionsRow{
+			Components: []discordgo.MessageComponent{
+				discordgo.Button{
+					Label:    "发送封禁通知",
+					Style:    discordgo.DangerButton,
+					CustomID: "send_ban_dm:" + cacheID,
 				},
 			},
 		})

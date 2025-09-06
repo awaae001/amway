@@ -34,7 +34,6 @@ func validateUserBanStatus(s *discordgo.Session, i *discordgo.InteractionCreate)
 		})
 		return false
 	}
-	
 	return true
 }
 
@@ -68,15 +67,6 @@ func validateCacheData(s *discordgo.Session, i *discordgo.InteractionCreate, cac
 	return cacheData, true
 }
 
-func buildErrorResponse(content string) *discordgo.InteractionResponse {
-	return &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Content: content,
-			Flags:   discordgo.MessageFlagsEphemeral,
-		},
-	}
-}
 
 func CreateSubmissionButtonHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	if !validateUserBanStatus(s, i) {

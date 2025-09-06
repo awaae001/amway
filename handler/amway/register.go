@@ -34,4 +34,6 @@ func RegisterHandlers() {
 	// 私信通知相关处理器
 	handler.AddComponentHandlerPrefix("select_reason:", SelectReasonHandler)
 	handler.AddComponentHandlerPrefix("send_rejection_dm:", SendRejectionDMHandler)
+	handler.AddComponentHandlerPrefix("select_ban_reason:", SelectBanReasonHandler)
+	handler.AddComponentHandlerPrefix("send_ban_dm:", SendBanDMHandler)
 }

@@ -166,25 +166,26 @@ func processVoteResult(s *discordgo.Session, i *discordgo.InteractionCreate, ses
 		}
 	}
 
-	var banReason string
+	var banReasons []string
 	if finalStatus == "banned" {
 		for _, v := range session.Votes {
 			if v.Type == vote.Ban && v.Reason != "" {
-				banReason = v.Reason // Just get the last ban reason
-				break
+				banReasons = append(banReasons, v.Reason)
 			}
 		}
 	}
 
 	if finalStatus != oldStatus {
-		handleStatusChange(s, submission, finalStatus, reviewerID, replyToOriginal, banReason)
+		// For bans, we now handle the notification logic after an admin selects a reason.
+		// So, we pass an empty reason here. The actual ban is still applied.
+		handleStatusChange(s, submission, finalStatus, reviewerID, replyToOriginal, "")
 	}
 
-	finalizeReviewMessage(s, i, session.SubmissionID, finalStatus, rejectionReasons, cacheID)
+	finalizeReviewMessage(s, i, session.SubmissionID, finalStatus, rejectionReasons, banReasons, cacheID)
 }
 
 // handleStatusChange processes the consequences of a submission's final status.
-func handleStatusChange(s *discordgo.Session, submission *model.Submission, finalStatus, reviewerID string, replyToOriginal bool, banReason string) {
+func handleStatusChange(s *discordgo.Session, submission *model.Submission, finalStatus, reviewerID string, replyToOriginal bool, selectedBanReason string) {
 	// Update user stats based on the new status
 	switch finalStatus {
 	case "featured":
@@ -203,12 +204,18 @@ func handleStatusChange(s *discordgo.Session, submission *model.Submission, fina
 				if err != nil {
 					log.Printf("Failed to apply permanent ban to user %s: %v", submission.UserID, err)
 				} else {
-					// Notify the user about the permanent ban.
-					sendBanNotification(s, submission.UserID, true, updatedUser.BanCount, banReason)
+					// Notification is now handled by SendBanDMHandler, so we only log here.
+					log.Printf("User %s has been permanently banned after reaching %d bans.", submission.UserID, updatedUser.BanCount)
+					if selectedBanReason != "" {
+						sendBanNotification(s, submission.UserID, true, updatedUser.BanCount, selectedBanReason)
+					}
 				}
 			} else {
-				// Notify the user about the temporary ban.
-				sendBanNotification(s, submission.UserID, false, updatedUser.BanCount, banReason)
+				// Notification is now handled by SendBanDMHandler
+				log.Printf("User %s has been temporarily banned for 3 days. This is their %d ban.", submission.UserID, updatedUser.BanCount)
+				if selectedBanReason != "" {
+					sendBanNotification(s, submission.UserID, false, updatedUser.BanCount, selectedBanReason)
+				}
 			}
 		}
 
@@ -229,15 +236,20 @@ func handleStatusChange(s *discordgo.Session, submission *model.Submission, fina
 }
 
 // finalizeReviewMessage updates the original review message to show the final result.
-func finalizeReviewMessage(s *discordgo.Session, i *discordgo.InteractionCreate, submissionID, finalStatus string, reasons []string, cacheID string) {
+func finalizeReviewMessage(s *discordgo.Session, i *discordgo.InteractionCreate, submissionID, finalStatus string, rejectionReasons, banReasons []string, cacheID string) {
 	finalEmbed := BuildFinalVoteEmbed(submissionID, finalStatus)
+	var components []discordgo.MessageComponent
 
-	// If there are reasons, store them in the new cache so the selection handler can access them.
-	if len(reasons) > 0 {
-		model.SetAvailableRejectionReasons(submissionID, reasons)
+	// Store reasons in cache and build components based on the final status
+	if finalStatus == "rejected" && len(rejectionReasons) > 0 {
+		model.SetAvailableRejectionReasons(submissionID, rejectionReasons)
+		components = BuildRejectionComponents(cacheID, rejectionReasons)
+	} else if finalStatus == "banned" && len(banReasons) > 0 {
+		// We'll create a new cache for ban reasons
+		model.SetAvailableBanReasons(submissionID, banReasons)
+		// We'll create a new function to build ban components
+		components = BuildBanComponents(cacheID, banReasons)
 	}
-
-	components := BuildRejectionComponents(cacheID, reasons)
 
 	embeds := i.Message.Embeds
 	embeds = append(embeds, finalEmbed)
@@ -250,10 +262,14 @@ func finalizeReviewMessage(s *discordgo.Session, i *discordgo.InteractionCreate,
 		log.Printf("Failed to finalize review message for submission %s: %v", submissionID, err)
 	}
 
-	if finalStatus != "rejected" || len(reasons) == 0 {
+	if finalStatus != "rejected" && finalStatus != "banned" {
 		utils.RemoveFromCache(cacheID)
-		model.DeleteAvailableRejectionReasons(submissionID) // Clean up the new cache as well
-		log.Printf("Removed cache entry %s after voting completion for submission %s", cacheID, submissionID)
+	} else if finalStatus == "rejected" && len(rejectionReasons) == 0 {
+		utils.RemoveFromCache(cacheID)
+		model.DeleteAvailableRejectionReasons(submissionID)
+	} else if finalStatus == "banned" && len(banReasons) == 0 {
+		utils.RemoveFromCache(cacheID)
+		model.DeleteAvailableBanReasons(submissionID)
 	}
 }
 
@@ -265,14 +281,32 @@ func sendBanNotification(s *discordgo.Session, userID string, isPermanent bool, 
 		return
 	}
 
-	var message string
-	if isPermanent {
-		message = fmt.Sprintf("您好，由于您在安利墙的行为，您的账户已被安利系统拒接投稿权限。这是您的第 %d 次封禁。\n\n**封禁理由**\n%s", banCount, reason)
-	} else {
-		message = fmt.Sprintf("您好，由于您在安利墙的行为，您的账户已被临时封禁3天。这是您的第 %d 次封禁。累计3次封禁将被永久拒绝投稿\n\n**封禁理由**\n%s", banCount, reason)
+	embed := &discordgo.MessageEmbed{
+		Title: "来自安利墙的封禁通知",
+		Color: 0xff0000, // Red
+		Fields: []*discordgo.MessageEmbedField{
+			{
+				Name:  "违规用户",
+				Value: fmt.Sprintf("<@%s>", userID),
+			},
+			{
+				Name:  "封禁理由",
+				Value: reason,
+			},
+			{
+				Name:  "这是您的第几次封禁？",
+				Value: fmt.Sprintf("%d", banCount),
+			},
+		},
 	}
 
-	_, err = s.ChannelMessageSend(channel.ID, message)
+	if isPermanent {
+		embed.Description = "您的账户已被安利系统永久拒接投稿权限。"
+	} else {
+		embed.Description = "您的账户已被安利系统临时封禁3天。累计3次封禁将被永久拒绝投稿。"
+	}
+
+	_, err = s.ChannelMessageSendEmbed(channel.ID, embed)
 	if err != nil {
 		log.Printf("Failed to send ban notification to user %s: %v", userID, err)
 	}
