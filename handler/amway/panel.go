@@ -160,6 +160,7 @@ func CreatePanelMessage() *discordgo.MessageSend {
 
 	howToButton := discordgo.Button{
 		Style:    discordgo.SecondaryButton,
+		Label:    "关于",
 		CustomID: "how_to_submit_button",
 		Emoji:    &discordgo.ComponentEmoji{Name: "ℹ️"},
 	}
