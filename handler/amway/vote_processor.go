@@ -242,11 +242,11 @@ func finalizeReviewMessage(s *discordgo.Session, i *discordgo.InteractionCreate,
 
 	// Store reasons in cache and build components based on the final status
 	if finalStatus == "rejected" && len(rejectionReasons) > 0 {
-		model.SetAvailableRejectionReasons(submissionID, rejectionReasons)
+		utils.SetAvailableRejectionReasons(submissionID, rejectionReasons)
 		components = BuildRejectionComponents(cacheID, rejectionReasons)
 	} else if finalStatus == "banned" && len(banReasons) > 0 {
 		// We'll create a new cache for ban reasons
-		model.SetAvailableBanReasons(submissionID, banReasons)
+		utils.SetAvailableBanReasons(submissionID, banReasons)
 		// We'll create a new function to build ban components
 		components = BuildBanComponents(cacheID, banReasons)
 	}
@@ -266,10 +266,10 @@ func finalizeReviewMessage(s *discordgo.Session, i *discordgo.InteractionCreate,
 		utils.RemoveFromCache(cacheID)
 	} else if finalStatus == "rejected" && len(rejectionReasons) == 0 {
 		utils.RemoveFromCache(cacheID)
-		model.DeleteAvailableRejectionReasons(submissionID)
+		utils.DeleteAvailableRejectionReasons(submissionID)
 	} else if finalStatus == "banned" && len(banReasons) == 0 {
 		utils.RemoveFromCache(cacheID)
-		model.DeleteAvailableBanReasons(submissionID)
+		utils.DeleteAvailableBanReasons(submissionID)
 	}
 }
 

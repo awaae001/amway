@@ -2,7 +2,6 @@ package amway
 
 import (
 	"amway/db"
-	"amway/model"
 	"amway/utils"
 	"amway/vote"
 	"fmt"
@@ -182,7 +181,7 @@ func SelectReasonHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	submissionID := cacheData.SubmissionID
 
 	// Get all available reasons from the new cache
-	allReasons, ok := model.GetAvailableRejectionReasons(submissionID)
+	allReasons, ok := utils.GetAvailableRejectionReasons(submissionID)
 	if !ok || len(allReasons) <= reasonIndex {
 		log.Printf("Available rejection reasons not found or index out of bounds for submission %s", submissionID)
 		return
@@ -191,7 +190,7 @@ func SelectReasonHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	selectedReason := allReasons[reasonIndex]
 
 	// Toggle selection in cache
-	cachedReasons, _ := model.GetRejectionReasons(submissionID)
+	cachedReasons, _ := utils.GetRejectionReasons(submissionID)
 	var newReasons []string
 	reasonFound := false
 	for _, r := range cachedReasons {
@@ -204,7 +203,7 @@ func SelectReasonHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	if !reasonFound {
 		newReasons = append(newReasons, selectedReason)
 	}
-	model.SetRejectionReasons(submissionID, newReasons)
+	utils.SetRejectionReasons(submissionID, newReasons)
 
 	adminActionUpdate(s, i)
 }
@@ -228,7 +227,7 @@ func SendRejectionDMHandler(s *discordgo.Session, i *discordgo.InteractionCreate
 	}
 
 	submissionID := cacheData.SubmissionID
-	reasons, ok := model.GetRejectionReasons(submissionID)
+	reasons, ok := utils.GetRejectionReasons(submissionID)
 	if !ok || len(reasons) == 0 {
 		// Respond with an ephemeral message if no reasons were selected
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -285,8 +284,8 @@ func SendRejectionDMHandler(s *discordgo.Session, i *discordgo.InteractionCreate
 	}
 
 	// Cleanup cache and update the original message
-	model.DeleteRejectionReasons(submissionID)
-	model.DeleteAvailableRejectionReasons(submissionID) // Clean up the new cache as well
+	utils.DeleteRejectionReasons(submissionID)
+	utils.DeleteAvailableRejectionReasons(submissionID) // Clean up the new cache as well
 	utils.RemoveFromCache(cacheID)
 	log.Printf("Removed cache entry %s after sending rejection DM for submission %s", cacheID, submissionID)
 	adminActionUpdate(s, i)
@@ -306,8 +305,8 @@ func adminActionUpdate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		log.Printf("Cache already cleaned for cacheID %s", cacheID)
 	}
 
-	selectedRejectionReasons, _ := model.GetRejectionReasons(submissionID)
-	selectedBanReasons, _ := model.GetBanReasons(submissionID)
+	selectedRejectionReasons, _ := utils.GetRejectionReasons(submissionID)
+	selectedBanReasons, _ := utils.GetBanReasons(submissionID)
 
 	isRejectionSelected := make(map[string]bool)
 	for _, r := range selectedRejectionReasons {
@@ -451,13 +450,13 @@ func SelectBanReasonHandler(s *discordgo.Session, i *discordgo.InteractionCreate
 	}
 	submissionID := cacheData.SubmissionID
 
-	allReasons, ok := model.GetAvailableBanReasons(submissionID)
+	allReasons, ok := utils.GetAvailableBanReasons(submissionID)
 	if !ok || len(allReasons) <= reasonIndex {
 		return
 	}
 	selectedReason := allReasons[reasonIndex]
 
-	cachedReasons, _ := model.GetBanReasons(submissionID)
+	cachedReasons, _ := utils.GetBanReasons(submissionID)
 	var newReasons []string
 	reasonFound := false
 	for _, r := range cachedReasons {
@@ -474,7 +473,7 @@ func SelectBanReasonHandler(s *discordgo.Session, i *discordgo.InteractionCreate
 		newReasons = []string{}
 	}
 
-	model.SetBanReasons(submissionID, newReasons)
+	utils.SetBanReasons(submissionID, newReasons)
 	adminActionUpdate(s, i)
 }
 
@@ -488,7 +487,7 @@ func SendBanDMHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		return
 	}
 	submissionID := cacheData.SubmissionID
-	reasons, ok := model.GetBanReasons(submissionID)
+	reasons, ok := utils.GetBanReasons(submissionID)
 	if !ok || len(reasons) == 0 {
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
@@ -527,8 +526,8 @@ func SendBanDMHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	sendBanNotification(s, submission.UserID, isPermanent, updatedUser.BanCount, selectedReason)
 
 	// Cleanup cache and update the original message
-	model.DeleteBanReasons(submissionID)
-	model.DeleteAvailableBanReasons(submissionID)
+	utils.DeleteBanReasons(submissionID)
+	utils.DeleteAvailableBanReasons(submissionID)
 	utils.RemoveFromCache(cacheID)
 	log.Printf("Removed cache entry %s after sending ban DM for submission %s", cacheID, submissionID)
 	adminActionUpdate(s, i)
