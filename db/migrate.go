@@ -69,6 +69,22 @@ func createTables() {
 		log.Fatalf("Failed to initialize submission counter: %v", err)
 	}
 
+	// SQL statement to create the 'submission_reactions' table.
+	createSubmissionReactionsTableSQL := `
+	CREATE TABLE IF NOT EXISTS submission_reactions (
+		submission_id TEXT NOT NULL,
+		message_id TEXT NOT NULL,
+		user_id TEXT NOT NULL,
+		emoji_name TEXT NOT NULL,
+		created_at INTEGER NOT NULL,
+		PRIMARY KEY (submission_id, user_id)
+	);`
+
+	_, err = DB.Exec(createSubmissionReactionsTableSQL)
+	if err != nil {
+		log.Fatalf("Failed to create submission_reactions table: %v", err)
+	}
+
 	// Add is_deleted column if it doesn't exist (migration for existing databases)
 	_, err = DB.Exec("ALTER TABLE recommendations ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0")
 	if err != nil && !isColumnExistsError(err) {

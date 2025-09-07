@@ -143,20 +143,35 @@ func GetSubmissionByMessageID(messageID string) (*model.Submission, error) {
 
 // UpdateReactionCount updates the reaction counts for a submission.
 func UpdateReactionCount(submissionID string, emojiName string, increment int) error {
+	tx, err := DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if err := UpdateReactionCountInTx(tx, submissionID, emojiName, increment); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+// UpdateReactionCountInTx updates the reaction counts for a submission within a transaction.
+func UpdateReactionCountInTx(tx *sql.Tx, submissionID string, emojiName string, increment int) error {
 	var fieldToUpdate string
 	switch emojiName {
-	case "💯":
+	case "👍":
 		fieldToUpdate = "upvotes"
-	case "‼️":
+	case "🤔":
 		fieldToUpdate = "questions"
 	case "🚫":
 		fieldToUpdate = "downvotes"
 	default:
-		return nil
+		return nil // Not a trackable emoji
 	}
 
 	query := fmt.Sprintf("UPDATE recommendations SET %s = %s + ? WHERE id = ?", fieldToUpdate, fieldToUpdate)
-	_, err := DB.Exec(query, increment, submissionID)
+	_, err := tx.Exec(query, increment, submissionID)
 	return err
 }
 

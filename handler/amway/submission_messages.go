@@ -262,8 +262,8 @@ func PublishSubmission(s *discordgo.Session, submission *model.Submission, reply
 	}
 
 	// Add standard reactions to the published message
-	s.MessageReactionAdd(publishMsg.ChannelID, publishMsg.ID, "💯")
-	s.MessageReactionAdd(publishMsg.ChannelID, publishMsg.ID, "‼️")
+	s.MessageReactionAdd(publishMsg.ChannelID, publishMsg.ID, "👍")
+	s.MessageReactionAdd(publishMsg.ChannelID, publishMsg.ID, "🤔")
 	s.MessageReactionAdd(publishMsg.ChannelID, publishMsg.ID, "🚫")
 
 	if err := db.UpdateFinalAmwayMessageID(submission.ID, publishMsg.ID); err != nil {
