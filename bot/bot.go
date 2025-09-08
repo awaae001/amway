@@ -4,6 +4,7 @@ import (
 	"amway/command"
 	"amway/config"
 	"amway/handler/amway"
+	"amway/handler/my"
 	"log"
 	"os"
 	"os/signal"
@@ -24,6 +25,7 @@ func Start() {
 
 	// 注册 amway 处理程序
 	amway.RegisterHandlers()
+	my.RegisterHandlers()
 
 	// 使用提供的机器人令牌创建一个新的 Discord 会话。
 	dg, err = discordgo.New("Bot " + config.Cfg.Token)

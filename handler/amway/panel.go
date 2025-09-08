@@ -158,6 +158,13 @@ func CreatePanelMessage() *discordgo.MessageSend {
 		Emoji:    &discordgo.ComponentEmoji{Name: "📝"},
 	}
 
+	myAmwayButton := discordgo.Button{
+		Label:    "我的",
+		Style:    discordgo.SuccessButton,
+		CustomID: "my_amway_button",
+		Emoji:    &discordgo.ComponentEmoji{Name: "👤"},
+	}
+
 	howToButton := discordgo.Button{
 		Style:    discordgo.SecondaryButton,
 		Label:    "关于",
@@ -168,7 +175,7 @@ func CreatePanelMessage() *discordgo.MessageSend {
 	return &discordgo.MessageSend{
 		Embeds: []*discordgo.MessageEmbed{embed},
 		Components: []discordgo.MessageComponent{
-			discordgo.ActionsRow{Components: []discordgo.MessageComponent{submissionButton, howToButton}},
+			discordgo.ActionsRow{Components: []discordgo.MessageComponent{submissionButton, myAmwayButton, howToButton}},
 		},
 	}
 }

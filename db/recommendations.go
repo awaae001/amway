@@ -297,3 +297,90 @@ func GetAllSubmissionsByAuthor(authorID string) ([]*model.Submission, error) {
 
 	return submissions, nil
 }
+
+// MyAmwayGetUserSubmissions retrieves a paginated list of a user's submissions for the "My Amway" panel.
+// It also returns the total count of submissions for that user.
+func MyAmwayGetUserSubmissions(authorID string, page int, pageSize int) ([]*model.Submission, int, error) {
+	var total int
+	// 1. Get total count
+	err := DB.QueryRow("SELECT COUNT(*) FROM recommendations WHERE author_id = ?", authorID).Scan(&total)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count submissions for user %s: %w", authorID, err)
+	}
+
+	if total == 0 {
+		return []*model.Submission{}, 0, nil
+	}
+
+	// 2. Get paginated data
+	offset := (page - 1) * pageSize
+	query := `SELECT
+		id, author_id, COALESCE(author_nickname, '') as author_nickname, content, post_url, created_at,
+		COALESCE(guild_id, '') as guild_id,
+		COALESCE(original_title, '') as original_title,
+		COALESCE(original_author, '') as original_author,
+		COALESCE(recommend_title, '') as recommend_title,
+		COALESCE(recommend_content, '') as recommend_content,
+		COALESCE(original_post_timestamp, '') as original_post_timestamp,
+		COALESCE(final_amway_message_id, '') as final_amway_message_id,
+		upvotes, questions, downvotes, is_anonymous, status, COALESCE(vote_file_id, '') as vote_file_id,
+		COALESCE(thread_message_id, '0') as thread_message_id
+	FROM recommendations WHERE author_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`
+
+	rows, err := DB.Query(query, authorID, pageSize, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var submissions []*model.Submission
+	for rows.Next() {
+		submission, err := scanSubmission(rows)
+		if err != nil {
+			return nil, 0, err
+		}
+		if submission != nil {
+			submissions = append(submissions, submission)
+		}
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, 0, err
+	}
+
+	return submissions, total, nil
+}
+
+// MyAmwayRetractSubmission performs a soft delete on a submission for the "My Amway" panel.
+// It ensures that the user attempting the retraction is the owner and the submission is in a valid state.
+// It returns the submission object on success for further processing (like deleting messages).
+func MyAmwayRetractSubmission(submissionID string, userID string) (*model.Submission, error) {
+	sub, err := GetSubmission(submissionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get submission: %w", err)
+	}
+	if sub == nil {
+		return nil, fmt.Errorf("submission with ID %s not found", submissionID)
+	}
+
+	if sub.UserID != userID {
+		return nil, fmt.Errorf("user %s is not the owner of submission %s", userID, submissionID)
+	}
+
+	if sub.Status != "approved" && sub.Status != "featured" {
+		return nil, fmt.Errorf("submission cannot be retracted because its status is '%s'", sub.Status)
+	}
+
+	if err := MarkSubmissionDeleted(submissionID); err != nil {
+		return nil, fmt.Errorf("failed to mark submission as deleted: %w", err)
+	}
+
+	// Also update the status to 'retracted' so the UI can display it correctly.
+	if err := UpdateSubmissionStatus(submissionID, "retracted"); err != nil {
+		// Log or handle the error, but the main goal (soft delete) is achieved.
+		// For now, we'll log it and proceed.
+		fmt.Printf("could not update status to retracted for submission %s: %v", submissionID, err)
+	}
+
+	return sub, nil
+}
