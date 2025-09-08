@@ -4,6 +4,7 @@ import (
 	"amway/config"
 	"amway/db"
 	"amway/model"
+	"amway/utils"
 	"log"
 	"time"
 
@@ -110,6 +111,49 @@ func handleReactionUpdate(s *discordgo.Session, channelID, messageID, userID, em
 			// This is not a critical error, just log it. The database is already correct.
 			log.Printf("Failed to remove old reaction emoji '%s' for user %s on message %s: %v", emojiToRemove, userID, messageID, err)
 		}
+	}
+
+	if emojiName == "🚫" {
+		go checkAndDeleteSubmission(s, submission.ID, channelID, messageID)
+	}
+}
+
+func checkAndDeleteSubmission(s *discordgo.Session, submissionID, channelID, messageID string) {
+	time.Sleep(15 * time.Second)
+
+	submission, err := db.GetSubmission(submissionID)
+	if err != nil {
+		log.Printf("Error getting submission %s for delete check: %v", submissionID, err)
+		return
+	}
+	if submission == nil {
+		return // Submission already deleted or not found
+	}
+
+	if submission.Downvotes >= 15 {
+		// Soft delete from the database first
+		if err := db.MarkSubmissionDeleted(submission.ID); err != nil {
+			log.Printf("Failed to mark submission %s as deleted: %v", submission.ID, err)
+			// Continue to delete messages anyway
+		}
+
+		// Delete the main amway message using the passed-in IDs
+		if err := s.ChannelMessageDelete(channelID, messageID); err != nil {
+			log.Printf("Failed to delete amway message %s in channel %s: %v", messageID, channelID, err)
+		}
+
+		// If there is an original post, delete the forwarded message as well
+		if submission.ThreadMessageID != "0" && submission.ThreadMessageID != "" {
+			if originalChannelID, _, err := utils.GetOriginalPostDetails(submission.URL); err == nil {
+				if err := s.ChannelMessageDelete(originalChannelID, submission.ThreadMessageID); err != nil {
+					log.Printf("Failed to delete forwarded message %s in channel %s: %v", submission.ThreadMessageID, originalChannelID, err)
+				}
+			} else {
+				log.Printf("Failed to parse original post details from URL %s: %v", submission.URL, err)
+			}
+		}
+
+		log.Printf("Submission %s deleted due to reaching 15 downvotes.", submission.ID)
 	}
 }
 
