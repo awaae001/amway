@@ -5,7 +5,7 @@ import (
 	"database/sql"
 )
 
-// GetReaction retrieves a user's reaction for a specific submission.
+// GetReaction 检索用户对特定投稿的反应。
 func GetReaction(submissionID, userID string) (*model.SubmissionReaction, error) {
 	row := DB.QueryRow(`
 		SELECT submission_id, message_id, user_id, emoji_name, created_at
@@ -17,14 +17,14 @@ func GetReaction(submissionID, userID string) (*model.SubmissionReaction, error)
 	err := row.Scan(&reaction.SubmissionID, &reaction.MessageID, &reaction.UserID, &reaction.EmojiName, &reaction.CreatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, nil // No reaction found is not an error
+			return nil, nil // 没有找到反应不应被视为错误
 		}
 		return nil, err
 	}
 	return &reaction, nil
 }
 
-// UpsertReaction inserts a new reaction or updates an existing one.
+// UpsertReaction 插入一个新反应或更新一个现有反应。
 func UpsertReaction(reaction *model.SubmissionReaction) error {
 	tx, err := DB.Begin()
 	if err != nil {
@@ -39,7 +39,7 @@ func UpsertReaction(reaction *model.SubmissionReaction) error {
 	return tx.Commit()
 }
 
-// UpsertReactionInTx inserts a new reaction or updates an existing one within a transaction.
+// UpsertReactionInTx 在事务中插入一个新反应或更新一个现有反应。
 func UpsertReactionInTx(tx *sql.Tx, reaction *model.SubmissionReaction) error {
 	query := `
 		INSERT INTO submission_reactions (submission_id, message_id, user_id, emoji_name, created_at)
@@ -52,7 +52,7 @@ func UpsertReactionInTx(tx *sql.Tx, reaction *model.SubmissionReaction) error {
 	return err
 }
 
-// DeleteReaction removes a user's reaction from a submission.
+// DeleteReaction 从投稿中移除用户的反应。
 func DeleteReaction(submissionID, userID string) error {
 	tx, err := DB.Begin()
 	if err != nil {
@@ -67,7 +67,7 @@ func DeleteReaction(submissionID, userID string) error {
 	return tx.Commit()
 }
 
-// DeleteReactionInTx removes a user's reaction from a submission within a transaction.
+// DeleteReactionInTx 在事务中从投稿中移除用户的反应。
 func DeleteReactionInTx(tx *sql.Tx, submissionID, userID string) error {
 	_, err := tx.Exec(`
 		DELETE FROM submission_reactions

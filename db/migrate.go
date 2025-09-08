@@ -2,12 +2,11 @@ package db
 
 import (
 	"log"
-	"strings"
 )
 
-// createTables creates the necessary tables in the database if they don't exist.
+// createTables 如果数据库中不存在必要的表，则创建它们。
 func createTables() {
-	// SQL statement to create the 'recommendations' table.
+	// 用于创建 'recommendations' 表的 SQL 语句。
 	createRecommendationsTableSQL := `
 	CREATE TABLE IF NOT EXISTS recommendations (
 		id TEXT PRIMARY KEY,
@@ -39,7 +38,7 @@ func createTables() {
 		log.Fatalf("Failed to create recommendations table: %v", err)
 	}
 
-	// SQL statement to create the 'users' table.
+	// 用于创建 'users' 表的 SQL 语句。
 	createUsersTableSQL := `
 	CREATE TABLE IF NOT EXISTS users (
 		user_id TEXT PRIMARY KEY,
@@ -52,7 +51,7 @@ func createTables() {
 		log.Fatalf("Failed to create users table: %v", err)
 	}
 
-	// SQL statement to create the 'id_counter' table for sequential ID generation.
+	// 用于顺序 ID 生成的 'id_counter' 表的 SQL 语句。
 	createIdCounterTableSQL := `
 	CREATE TABLE IF NOT EXISTS id_counter (
 		counter_name TEXT PRIMARY KEY,
@@ -64,13 +63,7 @@ func createTables() {
 		log.Fatalf("Failed to create id_counter table: %v", err)
 	}
 
-	// Initialize the submission counter if it doesn't exist
-	_, err = DB.Exec("INSERT OR IGNORE INTO id_counter(counter_name, current_value) VALUES('submission_id', 0)")
-	if err != nil {
-		log.Fatalf("Failed to initialize submission counter: %v", err)
-	}
-
-	// SQL statement to create the 'submission_reactions' table.
+	// 用于创建 'submission_reactions' 表的 SQL 语句。
 	createSubmissionReactionsTableSQL := `
 	CREATE TABLE IF NOT EXISTS submission_reactions (
 		submission_id TEXT NOT NULL,
@@ -86,50 +79,5 @@ func createTables() {
 		log.Fatalf("Failed to create submission_reactions table: %v", err)
 	}
 
-	// Add is_deleted column if it doesn't exist (migration for existing databases)
-	_, err = DB.Exec("ALTER TABLE recommendations ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0")
-	if err != nil && !isColumnExistsError(err) {
-		log.Printf("Failed to add is_deleted column, it might already exist: %v", err)
-	}
-
-	// Add is_anonymous column if it doesn't exist (migration for existing databases)
-	_, err = DB.Exec("ALTER TABLE recommendations ADD COLUMN is_anonymous INTEGER NOT NULL DEFAULT 0")
-	if err != nil && !isColumnExistsError(err) {
-		log.Printf("Failed to add is_anonymous column, it might already exist: %v", err)
-	}
-
-	// Add status column if it doesn't exist (migration for existing databases)
-	_, err = DB.Exec("ALTER TABLE recommendations ADD COLUMN status TEXT NOT NULL DEFAULT 'pending'")
-	if err != nil && !isColumnExistsError(err) {
-		log.Printf("Failed to add status column, it might already exist: %v", err)
-	}
-
-	// Add vote_file_id column if it doesn't exist (migration for existing databases)
-	_, err = DB.Exec("ALTER TABLE recommendations ADD COLUMN vote_file_id TEXT")
-	if err != nil && !isColumnExistsError(err) {
-		log.Printf("Failed to add vote_file_id column, it might already exist: %v", err)
-	}
-
-	// Migration for ban system
-	_, err = DB.Exec("ALTER TABLE users ADD COLUMN ban_count INTEGER NOT NULL DEFAULT 0")
-	if err != nil && !isColumnExistsError(err) {
-		log.Printf("Failed to add ban_count column, it might already exist: %v", err)
-	}
-
-	_, err = DB.Exec("ALTER TABLE users ADD COLUMN is_permanently_banned BOOLEAN NOT NULL DEFAULT 0")
-	if err != nil && !isColumnExistsError(err) {
-		log.Printf("Failed to add is_permanently_banned column, it might already exist: %v", err)
-	}
-
-	_, err = DB.Exec("ALTER TABLE users ADD COLUMN banned_until INTEGER")
-	if err != nil && !isColumnExistsError(err) {
-		log.Printf("Failed to add banned_until column, it might already exist: %v", err)
-	}
-
 	log.Println("Database tables initialized successfully.")
-}
-
-// isColumnExistsError checks if the error is due to column already existing
-func isColumnExistsError(err error) bool {
-	return strings.Contains(err.Error(), "duplicate column name")
 }

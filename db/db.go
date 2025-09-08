@@ -12,10 +12,10 @@ const (
 	dbSource = "./data/amway.db"
 )
 
-// DB is the global database connection pool.
+// DB 是全局数据库连接池。
 var DB *sql.DB
 
-// InitDB initializes the SQLite database and creates tables if they don't exist.
+// InitDB 初始化 SQLite 数据库，如果表不存在则创建它们。
 func InitDB() {
 	var err error
 	DB, err = sql.Open(dbDriver, dbSource)
@@ -23,7 +23,7 @@ func InitDB() {
 		log.Fatalf("Failed to open database: %v", err)
 	}
 
-	// createTables is defined in migrate.go
+	// createTables 在 migrate.go 中定义
 	createTables()
 
 	log.Println("Database connection initialized successfully.")

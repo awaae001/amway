@@ -11,7 +11,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-// MessageReactionAdd handles reaction additions.
+// MessageReactionAdd 处理反应添加事件。
 func MessageReactionAdd(s *discordgo.Session, r *discordgo.MessageReactionAdd) {
 	if r.UserID == s.State.User.ID || r.ChannelID != config.Cfg.AmwayBot.Amway.PublishChannelID || !isValidReaction(r.Emoji.Name) {
 		return
@@ -19,7 +19,7 @@ func MessageReactionAdd(s *discordgo.Session, r *discordgo.MessageReactionAdd) {
 	handleReactionUpdate(s, r.ChannelID, r.MessageID, r.UserID, r.Emoji.Name, "ADD")
 }
 
-// MessageReactionRemove handles reaction removals.
+// MessageReactionRemove 处理反应移除事件。
 func MessageReactionRemove(s *discordgo.Session, r *discordgo.MessageReactionRemove) {
 	if r.UserID == s.State.User.ID || r.ChannelID != config.Cfg.AmwayBot.Amway.PublishChannelID || !isValidReaction(r.Emoji.Name) {
 		return
@@ -55,7 +55,7 @@ func handleReactionUpdate(s *discordgo.Session, channelID, messageID, userID, em
 	switch action {
 	case "ADD":
 		if oldReaction != nil && oldReaction.EmojiName == emojiName {
-			return // User reacted with the same emoji again, do nothing.
+			return // 用户重复使用了相同的表情符号，无需执行任何操作。
 		}
 
 		if oldReaction != nil {
@@ -104,11 +104,11 @@ func handleReactionUpdate(s *discordgo.Session, channelID, messageID, userID, em
 		return
 	}
 
-	// After the transaction is successfully committed, remove the old reaction from the message.
+	// 事务成功提交后，从消息中移除旧的反应。
 	if emojiToRemove != "" {
 		err := s.MessageReactionRemove(channelID, messageID, emojiToRemove, userID)
 		if err != nil {
-			// This is not a critical error, just log it. The database is already correct.
+			// 这不是一个严重错误，只需记录日志即可。数据库已经正确无误。
 			log.Printf("Failed to remove old reaction emoji '%s' for user %s on message %s: %v", emojiToRemove, userID, messageID, err)
 		}
 	}
@@ -127,22 +127,22 @@ func checkAndDeleteSubmission(s *discordgo.Session, submissionID, channelID, mes
 		return
 	}
 	if submission == nil {
-		return // Submission already deleted or not found
+		return // 稿件已被删除或未找到
 	}
 
 	if submission.Downvotes >= 15 {
-		// Soft delete from the database first
+		// 首先从数据库中软删除
 		if err := db.MarkSubmissionDeleted(submission.ID); err != nil {
 			log.Printf("Failed to mark submission %s as deleted: %v", submission.ID, err)
-			// Continue to delete messages anyway
+			// 无论如何继续删除消息
 		}
 
-		// Delete the main amway message using the passed-in IDs
+		// 使用传入的 ID 删除主要的 amway 消息
 		if err := s.ChannelMessageDelete(channelID, messageID); err != nil {
 			log.Printf("Failed to delete amway message %s in channel %s: %v", messageID, channelID, err)
 		}
 
-		// If there is an original post, delete the forwarded message as well
+		// 如果存在原始帖子，也删除转发的消息
 		if submission.ThreadMessageID != "0" && submission.ThreadMessageID != "" {
 			if originalChannelID, _, err := utils.GetOriginalPostDetails(submission.URL); err == nil {
 				if err := s.ChannelMessageDelete(originalChannelID, submission.ThreadMessageID); err != nil {

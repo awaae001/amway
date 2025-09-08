@@ -9,12 +9,12 @@ import (
 	"time"
 )
 
-// rowScanner is an interface that can be satisfied by *sql.Row or *sql.Rows.
+// rowScanner 是一个接口，可以由 *sql.Row 或 *sql.Rows 来满足。
 type rowScanner interface {
 	Scan(dest ...interface{}) error
 }
 
-// scanSubmission scans a row into a Submission struct.
+// scanSubmission 将一行扫描到 Submission 结构体中。
 func scanSubmission(scanner rowScanner) (*model.Submission, error) {
 	var sub model.Submission
 	err := scanner.Scan(
@@ -25,25 +25,25 @@ func scanSubmission(scanner rowScanner) (*model.Submission, error) {
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, nil // Return nil, nil if no submission is found
+			return nil, nil // 如果未找到投稿，则返回 nil, nil
 		}
 		return nil, err
 	}
 	return &sub, nil
 }
 
-// AddSubmission adds a new submission to the recommendations table (legacy version).
+// AddSubmission 将新投稿添加到 recommendations 表中（旧版）。
 func AddSubmission(userID, url, title, content, guildID, authorNickname string) (string, error) {
 	return AddSubmissionV2(userID, url, title, content, "", "", "", guildID, authorNickname, false)
 }
 
-// AddSubmissionV2 adds a new submission with original post info and recommendation content.
+// AddSubmissionV2 使用原始帖子信息和推荐内容添加新投稿。
 func AddSubmissionV2(userID, url, recommendTitle, recommendContent, originalTitle, originalAuthor string, originalPostTimestamp string, guildID string, authorNickname string, isAnonymous bool) (string, error) {
 	tx, err := DB.Begin()
 	if err != nil {
 		return "", err
 	}
-	defer tx.Rollback() // Rollback on error
+	defer tx.Rollback() // 出错时回滚
 
 	newID, err := getNextSubmissionID(tx)
 	if err != nil {
@@ -52,7 +52,7 @@ func AddSubmissionV2(userID, url, recommendTitle, recommendContent, originalTitl
 
 	submissionID := fmt.Sprintf("%d", newID)
 
-	// Generate a random 8-character hex ID for the vote file
+	// 为投票文件生成一个随机的8个字符的十六进制ID
 	bytes := make([]byte, 4)
 	if _, err := rand.Read(bytes); err != nil {
 		return "", err
@@ -84,24 +84,24 @@ func AddSubmissionV2(userID, url, recommendTitle, recommendContent, originalTitl
 	return submissionID, tx.Commit()
 }
 
-// UpdateSubmissionStatus updates the status of a submission in recommendations table.
+// UpdateSubmissionStatus 更新 recommendations 表中投稿的状态。
 func UpdateSubmissionStatus(submissionID, status string) error {
 	return UpdateSubmissionReviewer(submissionID, status, "")
 }
 
-// UpdateSubmissionReviewer updates the status and reviewer of a submission.
+// UpdateSubmissionReviewer 更新投稿的状态和审核员。
 func UpdateSubmissionReviewer(submissionID, status, reviewerID string) error {
 	_, err := DB.Exec("UPDATE recommendations SET status = ?, reviewer_id = ? WHERE id = ?", status, reviewerID, submissionID)
 	return err
 }
 
-// DeleteSubmission removes a submission from the recommendations table.
+// DeleteSubmission 从 recommendations 表中删除一个投稿。
 func DeleteSubmission(submissionID string) error {
 	_, err := DB.Exec("DELETE FROM recommendations WHERE id = ?", submissionID)
 	return err
 }
 
-// GetSubmission retrieves a submission by its ID from recommendations table (excludes deleted).
+// GetSubmission 从 recommendations 表中按 ID 检索投稿（不包括已删除的）。
 func GetSubmission(submissionID string) (*model.Submission, error) {
 	row := DB.QueryRow(`SELECT
 		id, author_id, COALESCE(author_nickname, '') as author_nickname, content, post_url, created_at,
@@ -119,19 +119,19 @@ func GetSubmission(submissionID string) (*model.Submission, error) {
 	return scanSubmission(row)
 }
 
-// UpdateFinalAmwayMessageID updates the final_amway_message_id for a submission.
+// UpdateFinalAmwayMessageID 更新投稿的 final_amway_message_id。
 func UpdateFinalAmwayMessageID(submissionID, messageID string) error {
 	_, err := DB.Exec("UPDATE recommendations SET final_amway_message_id = ? WHERE id = ?", messageID, submissionID)
 	return err
 }
 
-// UpdateThreadMessageID updates the thread_message_id for a submission.
+// UpdateThreadMessageID 更新投稿的 thread_message_id。
 func UpdateThreadMessageID(submissionID, messageID string) error {
 	_, err := DB.Exec("UPDATE recommendations SET thread_message_id = ? WHERE id = ?", messageID, submissionID)
 	return err
 }
 
-// GetSubmissionByMessageID retrieves a submission by its final message ID (excludes deleted).
+// GetSubmissionByMessageID 按最终消息 ID 检索投稿（不包括已删除的）。
 func GetSubmissionByMessageID(messageID string) (*model.Submission, error) {
 	row := DB.QueryRow(`SELECT
 		id, author_id, COALESCE(author_nickname, '') as author_nickname, content, post_url, created_at,
@@ -149,7 +149,7 @@ func GetSubmissionByMessageID(messageID string) (*model.Submission, error) {
 	return scanSubmission(row)
 }
 
-// UpdateReactionCount updates the reaction counts for a submission.
+// UpdateReactionCount 更新投稿的反应计数。
 func UpdateReactionCount(submissionID string, emojiName string, increment int) error {
 	tx, err := DB.Begin()
 	if err != nil {
@@ -164,7 +164,7 @@ func UpdateReactionCount(submissionID string, emojiName string, increment int) e
 	return tx.Commit()
 }
 
-// UpdateReactionCountInTx updates the reaction counts for a submission within a transaction.
+// UpdateReactionCountInTx 在事务中更新投稿的反应计数。
 func UpdateReactionCountInTx(tx *sql.Tx, submissionID string, emojiName string, increment int) error {
 	var fieldToUpdate string
 	switch emojiName {
@@ -175,7 +175,7 @@ func UpdateReactionCountInTx(tx *sql.Tx, submissionID string, emojiName string, 
 	case "🚫":
 		fieldToUpdate = "downvotes"
 	default:
-		return nil // Not a trackable emoji
+		return nil // 不是可追踪的表情符号
 	}
 
 	query := fmt.Sprintf("UPDATE recommendations SET %s = %s + ? WHERE id = ?", fieldToUpdate, fieldToUpdate)
@@ -183,13 +183,13 @@ func UpdateReactionCountInTx(tx *sql.Tx, submissionID string, emojiName string, 
 	return err
 }
 
-// MarkSubmissionDeleted marks a submission as deleted (soft delete).
+// MarkSubmissionDeleted 将投稿标记为已删除（软删除）。
 func MarkSubmissionDeleted(submissionID string) error {
 	_, err := DB.Exec("UPDATE recommendations SET is_deleted = 1 WHERE id = ?", submissionID)
 	return err
 }
 
-// GetSubmissionWithDeleted retrieves a submission by its ID, including deleted ones.
+// GetSubmissionWithDeleted 按 ID 检索投稿，包括已删除的投稿。
 func GetSubmissionWithDeleted(submissionID string) (*model.Submission, error) {
 	row := DB.QueryRow(`SELECT
 		id, author_id, COALESCE(author_nickname, '') as author_nickname, content, post_url, created_at,
@@ -207,20 +207,20 @@ func GetSubmissionWithDeleted(submissionID string) (*model.Submission, error) {
 	return scanSubmission(row)
 }
 
-// IsSubmissionDeleted checks if a submission is marked as deleted.
+// IsSubmissionDeleted 检查投稿是否被标记为已删除。
 func IsSubmissionDeleted(submissionID string) (bool, error) {
 	var isDeleted int
 	err := DB.QueryRow("SELECT is_deleted FROM recommendations WHERE id = ?", submissionID).Scan(&isDeleted)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return false, fmt.Errorf("submission not found")
+			return false, fmt.Errorf("未找到投稿")
 		}
 		return false, err
 	}
 	return isDeleted == 1, nil
 }
 
-// GetSubmissionsByAuthor retrieves all submissions by a specific author in a guild (excludes deleted).
+// GetSubmissionsByAuthor 检索特定作者在服务器中的所有投稿（不包括已删除的）。
 func GetSubmissionsByAuthor(authorID string, guildID string) ([]*model.Submission, error) {
 	query := `SELECT
 		id, author_id, COALESCE(author_nickname, '') as author_nickname, content, post_url, created_at,
@@ -259,7 +259,7 @@ func GetSubmissionsByAuthor(authorID string, guildID string) ([]*model.Submissio
 	return submissions, nil
 }
 
-// GetAllSubmissionsByAuthor retrieves all submissions by a specific author (excludes deleted).
+// GetAllSubmissionsByAuthor 检索特定作者的所有投稿（不包括已删除的）。
 func GetAllSubmissionsByAuthor(authorID string) ([]*model.Submission, error) {
 	query := `SELECT
 		id, author_id, COALESCE(author_nickname, '') as author_nickname, content, post_url, created_at,
