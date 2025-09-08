@@ -21,7 +21,7 @@ func scanSubmission(scanner rowScanner) (*model.Submission, error) {
 		&sub.ID, &sub.UserID, &sub.AuthorNickname, &sub.Content, &sub.URL, &sub.Timestamp,
 		&sub.GuildID, &sub.OriginalTitle, &sub.OriginalAuthor,
 		&sub.RecommendTitle, &sub.RecommendContent, &sub.OriginalPostTimestamp, &sub.FinalAmwayMessageID,
-		&sub.Upvotes, &sub.Questions, &sub.Downvotes, &sub.IsAnonymous, &sub.Status, &sub.VoteFileID,
+		&sub.Upvotes, &sub.Questions, &sub.Downvotes, &sub.IsAnonymous, &sub.Status, &sub.VoteFileID, &sub.ThreadMessageID,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -112,7 +112,8 @@ func GetSubmission(submissionID string) (*model.Submission, error) {
 		COALESCE(recommend_content, '') as recommend_content,
 		COALESCE(original_post_timestamp, '') as original_post_timestamp,
 		COALESCE(final_amway_message_id, '') as final_amway_message_id,
-		upvotes, questions, downvotes, is_anonymous, status, COALESCE(vote_file_id, '') as vote_file_id
+		upvotes, questions, downvotes, is_anonymous, status, COALESCE(vote_file_id, '') as vote_file_id,
+		COALESCE(thread_message_id, '0') as thread_message_id
 	FROM recommendations WHERE id = ? AND is_deleted = 0`, submissionID)
 
 	return scanSubmission(row)
@@ -121,6 +122,12 @@ func GetSubmission(submissionID string) (*model.Submission, error) {
 // UpdateFinalAmwayMessageID updates the final_amway_message_id for a submission.
 func UpdateFinalAmwayMessageID(submissionID, messageID string) error {
 	_, err := DB.Exec("UPDATE recommendations SET final_amway_message_id = ? WHERE id = ?", messageID, submissionID)
+	return err
+}
+
+// UpdateThreadMessageID updates the thread_message_id for a submission.
+func UpdateThreadMessageID(submissionID, messageID string) error {
+	_, err := DB.Exec("UPDATE recommendations SET thread_message_id = ? WHERE id = ?", messageID, submissionID)
 	return err
 }
 
@@ -135,7 +142,8 @@ func GetSubmissionByMessageID(messageID string) (*model.Submission, error) {
 		COALESCE(recommend_content, '') as recommend_content,
 		COALESCE(original_post_timestamp, '') as original_post_timestamp,
 		COALESCE(final_amway_message_id, '') as final_amway_message_id,
-		upvotes, questions, downvotes, is_anonymous, status, COALESCE(vote_file_id, '') as vote_file_id
+		upvotes, questions, downvotes, is_anonymous, status, COALESCE(vote_file_id, '') as vote_file_id,
+		COALESCE(thread_message_id, '0') as thread_message_id
 	FROM recommendations WHERE final_amway_message_id = ? AND is_deleted = 0`, messageID)
 
 	return scanSubmission(row)
@@ -192,7 +200,8 @@ func GetSubmissionWithDeleted(submissionID string) (*model.Submission, error) {
 		COALESCE(recommend_content, '') as recommend_content,
 		COALESCE(original_post_timestamp, '') as original_post_timestamp,
 		COALESCE(final_amway_message_id, '') as final_amway_message_id,
-		upvotes, questions, downvotes, is_anonymous, status, COALESCE(vote_file_id, '') as vote_file_id
+		upvotes, questions, downvotes, is_anonymous, status, COALESCE(vote_file_id, '') as vote_file_id,
+		COALESCE(thread_message_id, '0') as thread_message_id
 	FROM recommendations WHERE id = ?`, submissionID)
 
 	return scanSubmission(row)
@@ -222,7 +231,8 @@ func GetSubmissionsByAuthor(authorID string, guildID string) ([]*model.Submissio
 		COALESCE(recommend_content, '') as recommend_content,
 		COALESCE(original_post_timestamp, '') as original_post_timestamp,
 		COALESCE(final_amway_message_id, '') as final_amway_message_id,
-		upvotes, questions, downvotes, is_anonymous, status, COALESCE(vote_file_id, '') as vote_file_id
+		upvotes, questions, downvotes, is_anonymous, status, COALESCE(vote_file_id, '') as vote_file_id,
+		COALESCE(thread_message_id, '0') as thread_message_id
 	FROM recommendations WHERE author_id = ? AND guild_id = ? AND is_deleted = 0 ORDER BY created_at DESC`
 
 	rows, err := DB.Query(query, authorID, guildID)
@@ -260,7 +270,8 @@ func GetAllSubmissionsByAuthor(authorID string) ([]*model.Submission, error) {
 		COALESCE(recommend_content, '') as recommend_content,
 		COALESCE(original_post_timestamp, '') as original_post_timestamp,
 		COALESCE(final_amway_message_id, '') as final_amway_message_id,
-		upvotes, questions, downvotes, is_anonymous, status, COALESCE(vote_file_id, '') as vote_file_id
+		upvotes, questions, downvotes, is_anonymous, status, COALESCE(vote_file_id, '') as vote_file_id,
+		COALESCE(thread_message_id, '0') as thread_message_id
 	FROM recommendations WHERE author_id = ? AND is_deleted = 0 ORDER BY created_at DESC`
 
 	rows, err := DB.Query(query, authorID)

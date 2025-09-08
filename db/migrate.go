@@ -30,7 +30,8 @@ func createTables() {
 		final_amway_message_id TEXT,
 		is_deleted INTEGER NOT NULL DEFAULT 0,
 		is_anonymous INTEGER NOT NULL DEFAULT 0,
-		vote_file_id TEXT
+		vote_file_id TEXT,
+		thread_message_id TEXT NOT NULL DEFAULT '0'
 	);`
 
 	_, err := DB.Exec(createRecommendationsTableSQL)

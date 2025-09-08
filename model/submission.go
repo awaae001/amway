@@ -21,4 +21,5 @@ type Submission struct {
 	IsAnonymous           bool
 	Status                string
 	VoteFileID            string
+	ThreadMessageID       string
 }

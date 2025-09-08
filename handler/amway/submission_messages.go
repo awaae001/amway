@@ -283,12 +283,17 @@ func sendNotificationToOriginalPost(s *discordgo.Session, submission *model.Subm
 		return
 	}
 
-	_, err = s.ChannelMessageSendComplex(originalChannelID, notification)
+	msg, err := s.ChannelMessageSendComplex(originalChannelID, notification)
 	if err != nil {
 		if restErr, ok := err.(*discordgo.RESTError); ok && restErr.Message != nil && restErr.Message.Code == 30033 {
 			log.Printf("Skipping notification for submission %s: thread participants limit reached.", submission.ID)
 		} else {
 			log.Printf("Error sending notification to original post for submission %s: %v", submission.ID, err)
 		}
+		return
+	}
+
+	if err := db.UpdateThreadMessageID(submission.ID, msg.ID); err != nil {
+		log.Printf("Error updating thread message ID for submission %s: %v", submission.ID, err)
 	}
 }
