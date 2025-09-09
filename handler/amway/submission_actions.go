@@ -30,7 +30,7 @@ func VoteHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: "投票请求已过期，请联系管理员",
+				Content: "投票请求已过期，请联系开发者确认是否是 bot 重启导致的缓存丢失或者审核超时",
 				Flags:   discordgo.MessageFlagsEphemeral,
 			},
 		})
@@ -138,7 +138,7 @@ func ModalRejectHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: "投票请求已过期，请联系管理员",
+				Content: "投票请求已过期，请联系开发者确认是否是 bot 重启导致的缓存丢失或者审核超时",
 				Flags:   discordgo.MessageFlagsEphemeral,
 			},
 		})
@@ -171,7 +171,7 @@ func SelectReasonHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: "投票请求已过期，请联系管理员",
+				Content: "投票请求已过期，请联系开发者确认是否是 bot 重启导致的缓存丢失或者审核超时",
 				Flags:   discordgo.MessageFlagsEphemeral,
 			},
 		})
@@ -219,7 +219,7 @@ func SendRejectionDMHandler(s *discordgo.Session, i *discordgo.InteractionCreate
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: "投票请求已过期，请联系管理员",
+				Content: "投票请求已过期，请联系开发者确认是否是 bot 重启导致的缓存丢失或者审核超时",
 				Flags:   discordgo.MessageFlagsEphemeral,
 			},
 		})
@@ -417,7 +417,7 @@ func ModalBanHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: "投票请求已过期，请联系管理员",
+				Content: "投票请求已过期，请联系开发者确认是否是 bot 重启导致的缓存丢失或者审核超时",
 				Flags:   discordgo.MessageFlagsEphemeral,
 			},
 		})
