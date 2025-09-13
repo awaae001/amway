@@ -205,24 +205,25 @@ func SelectReasonHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	}
 	utils.SetRejectionReasons(submissionID, newReasons)
 
-	adminActionUpdate(s, i)
+	adminActionUpdate(s, i, false)
 }
 
 // SendRejectionDMHandler handles sending the rejection DM to the user.
 func SendRejectionDMHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredMessageUpdate,
+	}); err != nil {
+		log.Printf("Failed to defer interaction: %v", err)
+		return
+	}
+
 	cacheID := strings.Split(i.MessageComponentData().CustomID, ":")[1]
 
 	// Get submission data from cache
 	cacheData, found := utils.GetFromCache(cacheID)
 	if !found {
 		log.Printf("Cache data not found for cache ID: %s", cacheID)
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "投票请求已过期，请联系开发者确认是否是 bot 重启导致的缓存丢失或者审核超时",
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
+		handleExpiredInteraction(s, i)
 		return
 	}
 
@@ -288,11 +289,11 @@ func SendRejectionDMHandler(s *discordgo.Session, i *discordgo.InteractionCreate
 	utils.DeleteAvailableRejectionReasons(submissionID) // Clean up the new cache as well
 	utils.RemoveFromCache(cacheID)
 	log.Printf("Removed cache entry %s after sending rejection DM for submission %s", cacheID, submissionID)
-	adminActionUpdate(s, i)
+	adminActionUpdate(s, i, true)
 }
 
 // adminActionUpdate updates the admin message, disabling components after action.
-func adminActionUpdate(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func adminActionUpdate(s *discordgo.Session, i *discordgo.InteractionCreate, useEdit bool) {
 	customIDParts := strings.Split(i.MessageComponentData().CustomID, ":")
 	action := customIDParts[0]
 	cacheID := customIDParts[1]
@@ -355,14 +356,30 @@ func adminActionUpdate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		newComponents = append(newComponents, newRow)
 	}
 
-	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseUpdateMessage,
-		Data: &discordgo.InteractionResponseData{
-			Content:    i.Message.Content,
-			Embeds:     i.Message.Embeds,
-			Components: newComponents,
-		},
-	})
+	if useEdit {
+		content := i.Message.Content
+		embeds := i.Message.Embeds
+		_, err := s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+			Content:    &content,
+			Embeds:     &embeds,
+			Components: &newComponents,
+		})
+		if err != nil {
+			log.Printf("Failed to edit interaction response: %v", err)
+		}
+	} else {
+		err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseUpdateMessage,
+			Data: &discordgo.InteractionResponseData{
+				Content:    i.Message.Content,
+				Embeds:     i.Message.Embeds,
+				Components: newComponents,
+			},
+		})
+		if err != nil {
+			log.Printf("Failed to respond to interaction: %v", err)
+		}
+	}
 }
 
 func processVoteRemoval(s *discordgo.Session, i *discordgo.InteractionCreate, submissionID, voterID, cacheID string) {
@@ -445,7 +462,7 @@ func SelectBanReasonHandler(s *discordgo.Session, i *discordgo.InteractionCreate
 
 	cacheData, found := utils.GetFromCache(cacheID)
 	if !found {
-		// Handle expired interaction
+		handleExpiredInteraction(s, i)
 		return
 	}
 	submissionID := cacheData.SubmissionID
@@ -474,11 +491,18 @@ func SelectBanReasonHandler(s *discordgo.Session, i *discordgo.InteractionCreate
 	}
 
 	utils.SetBanReasons(submissionID, newReasons)
-	adminActionUpdate(s, i)
+	adminActionUpdate(s, i, false)
 }
 
 // SendBanDMHandler handles sending the ban DM to the user.
 func SendBanDMHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredMessageUpdate,
+	}); err != nil {
+		log.Printf("Failed to defer interaction: %v", err)
+		return
+	}
+
 	cacheID := strings.Split(i.MessageComponentData().CustomID, ":")[1]
 
 	cacheData, found := utils.GetFromCache(cacheID)
@@ -530,5 +554,26 @@ func SendBanDMHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	utils.DeleteAvailableBanReasons(submissionID)
 	utils.RemoveFromCache(cacheID)
 	log.Printf("Removed cache entry %s after sending ban DM for submission %s", cacheID, submissionID)
-	adminActionUpdate(s, i)
+	adminActionUpdate(s, i, true)
+}
+
+func handleExpiredInteraction(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	// Disable all components on the original message
+	emptyComponents := []discordgo.MessageComponent{}
+	content := i.Message.Content
+	embeds := i.Message.Embeds
+	_, err := s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+		Content:    &content,
+		Embeds:     &embeds,
+		Components: &emptyComponents,
+	})
+	if err != nil {
+		log.Printf("Failed to edit interaction response for expired interaction: %v", err)
+	}
+
+	// Send a followup message to inform the user
+	s.FollowupMessageCreate(i.Interaction, true, &discordgo.WebhookParams{
+		Content: "该操作已过期，可能是由于机器人重启或审核超时。消息按钮已移除。",
+		Flags:   discordgo.MessageFlagsEphemeral,
+	})
 }
