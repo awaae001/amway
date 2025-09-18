@@ -139,23 +139,32 @@ func BuildBanComponents(cacheID string, reasons []string) []discordgo.MessageCom
 	return components
 }
 
+// getAuthorDisplay returns the appropriate author display string based on anonymity status.
+func getAuthorDisplay(submission *model.Submission) string {
+	if submission.IsAnonymous {
+		return "一位热心的安利员"
+	}
+	return fmt.Sprintf("<@%s>", submission.UserID)
+}
+
+// formatRecommendationContent formats the recommendation content with author and title.
+func formatRecommendationContent(submission *model.Submission, prefix string) string {
+	authorDisplay := getAuthorDisplay(submission)
+	return fmt.Sprintf("-# %s %s\n## %s\n%s",
+		prefix,
+		authorDisplay,
+		submission.RecommendTitle,
+		submission.RecommendContent,
+	)
+}
+
 // BuildPublicationMessage constructs the message for the publication channel.
 func BuildPublicationMessage(submission *model.Submission) (*discordgo.MessageSend, error) {
 	if config.Cfg.AmwayBot.Amway.PublishChannelID == "" {
 		return nil, fmt.Errorf("publish channel ID not configured")
 	}
 
-	var authorDisplay string
-	if submission.IsAnonymous {
-		authorDisplay = "一位热心的安利员"
-	} else {
-		authorDisplay = fmt.Sprintf("<@%s>", submission.UserID)
-	}
-	plainContent := fmt.Sprintf("-# 来自 %s 的安利\n## %s\n%s",
-		authorDisplay,
-		submission.RecommendTitle,
-		submission.RecommendContent,
-	)
+	plainContent := formatRecommendationContent(submission, "来自")
 
 	embedFields := []*discordgo.MessageEmbedField{
 		{
@@ -201,12 +210,7 @@ func BuildNotificationMessage(submission *model.Submission, publishMsg *discordg
 
 	amwayMessageURL := fmt.Sprintf("https://discord.com/channels/%s/%s/%s", submission.GuildID, publishMsg.ChannelID, publishMsg.ID)
 
-	var authorDisplay string
-	if submission.IsAnonymous {
-		authorDisplay = "一位热心的安利员"
-	} else {
-		authorDisplay = fmt.Sprintf("<@%s>", submission.UserID)
-	}
+	authorDisplay := getAuthorDisplay(submission)
 	notificationContent := fmt.Sprintf("-# 来自 %s 的推荐，TA 觉得你的帖子很棒！\n## %s\n%s",
 		authorDisplay,
 		submission.RecommendTitle,
@@ -219,7 +223,7 @@ func BuildNotificationMessage(submission *model.Submission, publishMsg *discordg
 		Fields: []*discordgo.MessageEmbedField{
 			{
 				Name:   "安利人",
-				Value:  authorDisplay,
+				Value:  getAuthorDisplay(submission),
 				Inline: true,
 			},
 			{
@@ -296,4 +300,91 @@ func sendNotificationToOriginalPost(s *discordgo.Session, submission *model.Subm
 	if err := db.UpdateThreadMessageID(submission.ID, msg.ID); err != nil {
 		log.Printf("Error updating thread message ID for submission %s: %v", submission.ID, err)
 	}
+}
+
+// UpdateNotificationInOriginalPost updates an existing notification message in the original post.
+// This is used when the submission's anonymity status changes or when the submission is deleted.
+func UpdateNotificationInOriginalPost(s *discordgo.Session, submission *model.Submission, publishMsg *discordgo.Message, isDeleted bool) error {
+	originalChannelID, _, err := utils.GetOriginalPostDetails(submission.URL)
+	if err != nil {
+		return fmt.Errorf("error getting original post details for submission %s: %w", submission.ID, err)
+	}
+
+	// Check if thread message exists
+	if submission.ThreadMessageID == "" || submission.ThreadMessageID == "0" {
+		return nil // No message to update
+	}
+
+	var notificationContent string
+	var notificationEmbed *discordgo.MessageEmbed
+
+	if isDeleted {
+		// Build deleted message
+		notificationContent = "-# 该安利已被作者删除"
+		notificationEmbed = &discordgo.MessageEmbed{
+			Title: "安利已删除",
+			Color: 0xFF0000, // Red color for deletion
+			Fields: []*discordgo.MessageEmbedField{
+				{
+					Name:  "状态",
+					Value: "该推荐已被作者删除",
+				},
+				{
+					Name:   "时间",
+					Value:  time.Unix(submission.Timestamp, 0).Format("2006-01-02 15:04:05"),
+					Inline: true,
+				},
+			},
+		}
+	} else {
+		// Build updated message with current anonymity status
+		authorDisplay := getAuthorDisplay(submission)
+		notificationContent = fmt.Sprintf("-# 来自 %s 的推荐，TA 觉得你的帖子很棒！\n## %s\n%s",
+			authorDisplay,
+			submission.RecommendTitle,
+			submission.RecommendContent,
+		)
+
+		embedFields := []*discordgo.MessageEmbedField{
+			{
+				Name:   "安利人",
+				Value:  getAuthorDisplay(submission),
+				Inline: true,
+			},
+			{
+				Name:   "时间",
+				Value:  time.Unix(submission.Timestamp, 0).Format("2006-01-02 15:04:05"),
+				Inline: true,
+			},
+		}
+
+		// Add amway message link if available
+		if publishMsg != nil {
+			amwayMessageURL := fmt.Sprintf("https://discord.com/channels/%s/%s/%s", submission.GuildID, publishMsg.ChannelID, publishMsg.ID)
+			embedFields = append(embedFields, &discordgo.MessageEmbedField{
+				Name:  "安利消息链接",
+				Value: fmt.Sprintf("[点击查看](%s)", amwayMessageURL),
+			})
+		}
+
+		notificationEmbed = &discordgo.MessageEmbed{
+			Title:  "安利详情",
+			Color:  0x2ea043,
+			Fields: embedFields,
+		}
+	}
+
+	// Update the message
+	_, err = s.ChannelMessageEditComplex(&discordgo.MessageEdit{
+		Channel: originalChannelID,
+		ID:      submission.ThreadMessageID,
+		Content: &notificationContent,
+		Embeds:  &[]*discordgo.MessageEmbed{notificationEmbed},
+	})
+
+	if err != nil {
+		return fmt.Errorf("error updating notification message for submission %s: %w", submission.ID, err)
+	}
+
+	return nil
 }

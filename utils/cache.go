@@ -11,13 +11,17 @@ import (
 )
 
 var (
-	submissionCache = make(map[string]model.SubmissionData)
-	cacheMutex      = &sync.RWMutex{}
-	cacheTTL        = 24 * time.Hour // Cache entries expire after 24 hours
+	submissionCache     = make(map[string]model.SubmissionData)
+	submissionRateLimit = make(map[string]time.Time) // userID -> last submission time
+	cacheMutex          = &sync.RWMutex{}
+	rateLimitMutex      = &sync.RWMutex{}
+	cacheTTL            = 24 * time.Hour // Cache entries expire after 24 hours
+	rateLimitTTL        = 3 * time.Hour  // Rate limit entries expire after 3 hours
 )
 
 func init() {
 	go startCacheJanitor()
+	go startRateLimitJanitor()
 }
 
 // AddToCache adds submission data to the cache and returns a unique ID.
@@ -159,4 +163,55 @@ func removeFromCacheSafely(cacheID string) {
 	cacheMutex.Lock()
 	defer cacheMutex.Unlock()
 	delete(submissionCache, cacheID)
+}
+
+// CheckSubmissionRateLimit checks if a user can submit based on rate limiting.
+// Returns (canSubmit bool, remainingTime time.Duration)
+func CheckSubmissionRateLimit(userID string) (bool, time.Duration) {
+	rateLimitMutex.RLock()
+	defer rateLimitMutex.RUnlock()
+
+	lastSubmission, exists := submissionRateLimit[userID]
+	if !exists {
+		return true, 0
+	}
+
+	elapsed := time.Since(lastSubmission)
+	if elapsed >= rateLimitTTL {
+		return true, 0
+	}
+
+	remainingTime := rateLimitTTL - elapsed
+	return false, remainingTime
+}
+
+// RecordSubmissionTime records the submission time for rate limiting
+func RecordSubmissionTime(userID string) {
+	rateLimitMutex.Lock()
+	defer rateLimitMutex.Unlock()
+
+	submissionRateLimit[userID] = time.Now()
+}
+
+// startRateLimitJanitor runs a background process to clean up expired rate limit entries
+func startRateLimitJanitor() {
+	ticker := time.NewTicker(30 * time.Minute) // Check every 30 minutes
+	defer ticker.Stop()
+
+	for range ticker.C {
+		cleanExpiredRateLimit()
+	}
+}
+
+// cleanExpiredRateLimit removes expired rate limit entries
+func cleanExpiredRateLimit() {
+	rateLimitMutex.Lock()
+	defer rateLimitMutex.Unlock()
+
+	now := time.Now()
+	for userID, lastSubmission := range submissionRateLimit {
+		if now.Sub(lastSubmission) > rateLimitTTL {
+			delete(submissionRateLimit, userID)
+		}
+	}
 }

@@ -224,12 +224,13 @@ func ToggleAnonymityHandler(s *discordgo.Session, i *discordgo.InteractionCreate
 	}
 
 	// 3. Edit the original publication message
+	var publishMsg *discordgo.Message
 	if updatedSubmission.FinalAmwayMessageID != "" {
 		publicationMessage, err := amway.BuildPublicationMessage(updatedSubmission)
 		if err != nil {
 			log.Printf("Error building publication message for submission %s: %v", updatedSubmission.ID, err)
 		} else {
-			_, err := s.ChannelMessageEditComplex(&discordgo.MessageEdit{
+			publishMsg, err = s.ChannelMessageEditComplex(&discordgo.MessageEdit{
 				Channel: config.Cfg.AmwayBot.Amway.PublishChannelID,
 				ID:      updatedSubmission.FinalAmwayMessageID,
 				Content: &publicationMessage.Content,
@@ -241,7 +242,14 @@ func ToggleAnonymityHandler(s *discordgo.Session, i *discordgo.InteractionCreate
 		}
 	}
 
-	// 4. Update the interaction message with the new panel state
+	// 4. Update thread message to reflect anonymity change
+	if updatedSubmission.ThreadMessageID != "0" && updatedSubmission.ThreadMessageID != "" {
+		if err := amway.UpdateNotificationInOriginalPost(s, updatedSubmission, publishMsg, false); err != nil {
+			log.Printf("Failed to update thread message for anonymity change %s: %v", updatedSubmission.ID, err)
+		}
+	}
+
+	// 5. Update the interaction message with the new panel state
 	panel := BuildModificationPanel(updatedSubmission)
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseUpdateMessage,
@@ -267,17 +275,23 @@ func DeleteAmwayHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		return
 	}
 
-	// Delete messages from Discord
+	// Delete amway message from Discord
 	if submission.FinalAmwayMessageID != "" {
 		amwayChannelID := config.Cfg.AmwayBot.Amway.PublishChannelID
 		if err := s.ChannelMessageDelete(amwayChannelID, submission.FinalAmwayMessageID); err != nil {
 			log.Printf("Failed to delete amway message %s in channel %s: %v", submission.FinalAmwayMessageID, amwayChannelID, err)
 		}
 	}
+
+	// Update thread message to show deletion status instead of deleting it
 	if submission.ThreadMessageID != "0" && submission.ThreadMessageID != "" {
-		if originalChannelID, _, err := utils.GetOriginalPostDetails(submission.URL); err == nil {
-			if err := s.ChannelMessageDelete(originalChannelID, submission.ThreadMessageID); err != nil {
-				log.Printf("Failed to delete forwarded message %s in channel %s: %v", submission.ThreadMessageID, originalChannelID, err)
+		if err := amway.UpdateNotificationInOriginalPost(s, submission, nil, true); err != nil {
+			log.Printf("Failed to update thread message for deleted submission %s: %v", submission.ID, err)
+			// Fallback: delete the message if update fails
+			if originalChannelID, _, err := utils.GetOriginalPostDetails(submission.URL); err == nil {
+				if err := s.ChannelMessageDelete(originalChannelID, submission.ThreadMessageID); err != nil {
+					log.Printf("Failed to delete forwarded message %s in channel %s: %v", submission.ThreadMessageID, originalChannelID, err)
+				}
 			}
 		}
 	}

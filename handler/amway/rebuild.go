@@ -72,7 +72,7 @@ func RebuildCommandHandler(s *discordgo.Session, i *discordgo.InteractionCreate)
 				}
 				content += fmt.Sprintf("• ID: %s (作者: <@%s>)\n", sub.ID, sub.UserID)
 			}
-			content += "\n使用不带 `dry_run` 参数的命令来执行重建。"
+			content += "\n使用不带 `dry_run` 参数的命令来执行重建"
 
 			s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 				Content: utils.StringPtr(content),
@@ -102,7 +102,7 @@ func RebuildCommandHandler(s *discordgo.Session, i *discordgo.InteractionCreate)
 		}
 
 		if successCount > 0 {
-			content += "\n\n重建的安利已重新发送到投票器等待审核。"
+			content += "\n\n重建的安利已重新发送到投票器等待审核"
 		}
 
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{

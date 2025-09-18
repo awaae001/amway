@@ -6,6 +6,7 @@ import (
 	"amway/utils"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -30,6 +31,53 @@ func validateUserBanStatus(s *discordgo.Session, i *discordgo.InteractionCreate)
 			Data: &discordgo.InteractionResponseData{
 				Content: "您已被禁止投稿",
 				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+		return false
+	}
+	return true
+}
+
+func validateSubmissionRateLimit(s *discordgo.Session, i *discordgo.InteractionCreate) bool {
+	canSubmit, remainingTime := utils.CheckSubmissionRateLimit(i.Member.User.ID)
+	if !canSubmit {
+		hours := int(remainingTime.Hours())
+		minutes := int(remainingTime.Minutes()) % 60
+
+		var timeMsg string
+		if hours > 0 {
+			timeMsg = fmt.Sprintf("%d小时%d分钟", hours, minutes)
+		} else {
+			timeMsg = fmt.Sprintf("%d分钟", minutes)
+		}
+
+		embed := &discordgo.MessageEmbed{
+			Title:       "投稿频率限制",
+			Color:       0xFF6B6B, // 红色
+			Description: "为了保证安利墙的质量，每位用户3小时内只能投稿一次",
+			Fields: []*discordgo.MessageEmbedField{
+				{
+					Name:   "剩余等待时间",
+					Value:  timeMsg,
+					Inline: true,
+				},
+				{
+					Name:   "投稿限制",
+					Value:  "3小时/次",
+					Inline: true,
+				},
+			},
+			Footer: &discordgo.MessageEmbedFooter{
+				Text: "请耐心等待冷却时间结束",
+			},
+			Timestamp: fmt.Sprintf("%v", time.Now().Format(time.RFC3339)),
+		}
+
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Embeds: []*discordgo.MessageEmbed{embed},
+				Flags:  discordgo.MessageFlagsEphemeral,
 			},
 		})
 		return false
@@ -67,9 +115,12 @@ func validateCacheData(s *discordgo.Session, i *discordgo.InteractionCreate, cac
 	return cacheData, true
 }
 
-
 func CreateSubmissionButtonHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	if !validateUserBanStatus(s, i) {
+		return
+	}
+
+	if !validateSubmissionRateLimit(s, i) {
 		return
 	}
 
@@ -267,6 +318,10 @@ func FinalSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate
 		return
 	}
 
+	if !validateSubmissionRateLimit(s, i) {
+		return
+	}
+
 	customID := i.MessageComponentData().CustomID
 	parts, ok := parseAndValidateCustomID(s, i, customID, 3)
 	if !ok {
@@ -314,6 +369,9 @@ func FinalSubmissionHandler(s *discordgo.Session, i *discordgo.InteractionCreate
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{Content: &errorContent})
 		return
 	}
+
+	// Record submission time for rate limiting
+	utils.RecordSubmissionTime(i.Member.User.ID)
 
 	// Update cache with submission ID for auto-rejection functionality
 	cacheData.SubmissionID = submissionID
