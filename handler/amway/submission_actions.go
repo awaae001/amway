@@ -234,7 +234,7 @@ func SendRejectionDMHandler(s *discordgo.Session, i *discordgo.InteractionCreate
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: "请先选择至少一个“不通过”的理由。",
+				Content: "请先选择至少一个“不通过”的理由",
 				Flags:   discordgo.MessageFlagsEphemeral,
 			},
 		})
@@ -516,7 +516,7 @@ func SendBanDMHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: "请先选择一个“封禁”的理由。",
+				Content: "请先选择一个“封禁”的理由",
 				Flags:   discordgo.MessageFlagsEphemeral,
 			},
 		})
@@ -573,7 +573,7 @@ func handleExpiredInteraction(s *discordgo.Session, i *discordgo.InteractionCrea
 
 	// Send a followup message to inform the user
 	s.FollowupMessageCreate(i.Interaction, true, &discordgo.WebhookParams{
-		Content: "该操作已过期，可能是由于机器人重启或审核超时。消息按钮已移除。",
+		Content: "该操作已过期，可能是由于机器人重启或审核超时消息按钮已移除",
 		Flags:   discordgo.MessageFlagsEphemeral,
 	})
 }

@@ -5,7 +5,7 @@ import (
 	"database/sql"
 )
 
-// GetReaction 检索用户对特定投稿的反应。
+// GetReaction 检索用户对特定投稿的反应
 func GetReaction(submissionID, userID string) (*model.SubmissionReaction, error) {
 	row := DB.QueryRow(`
 		SELECT submission_id, message_id, user_id, emoji_name, created_at
@@ -24,7 +24,7 @@ func GetReaction(submissionID, userID string) (*model.SubmissionReaction, error)
 	return &reaction, nil
 }
 
-// UpsertReaction 插入一个新反应或更新一个现有反应。
+// UpsertReaction 插入一个新反应或更新一个现有反应
 func UpsertReaction(reaction *model.SubmissionReaction) error {
 	tx, err := DB.Begin()
 	if err != nil {
@@ -39,7 +39,7 @@ func UpsertReaction(reaction *model.SubmissionReaction) error {
 	return tx.Commit()
 }
 
-// UpsertReactionInTx 在事务中插入一个新反应或更新一个现有反应。
+// UpsertReactionInTx 在事务中插入一个新反应或更新一个现有反应
 func UpsertReactionInTx(tx *sql.Tx, reaction *model.SubmissionReaction) error {
 	query := `
 		INSERT INTO submission_reactions (submission_id, message_id, user_id, emoji_name, created_at)
@@ -52,7 +52,7 @@ func UpsertReactionInTx(tx *sql.Tx, reaction *model.SubmissionReaction) error {
 	return err
 }
 
-// DeleteReaction 从投稿中移除用户的反应。
+// DeleteReaction 从投稿中移除用户的反应
 func DeleteReaction(submissionID, userID string) error {
 	tx, err := DB.Begin()
 	if err != nil {
@@ -67,7 +67,7 @@ func DeleteReaction(submissionID, userID string) error {
 	return tx.Commit()
 }
 
-// DeleteReactionInTx 在事务中从投稿中移除用户的反应。
+// DeleteReactionInTx 在事务中从投稿中移除用户的反应
 func DeleteReactionInTx(tx *sql.Tx, submissionID, userID string) error {
 	_, err := tx.Exec(`
 		DELETE FROM submission_reactions

@@ -43,7 +43,7 @@ func BuildVoteStatusEmbed(session *vote.Session) *discordgo.MessageEmbed {
 			voteEmbed.Fields = []*discordgo.MessageEmbedField{
 				{
 					Name:  "注意",
-					Value: "前两票出现差异，等待第三票决定最终结果。",
+					Value: "前两票出现差异，等待第三票决定最终结果",
 				},
 			}
 		}
@@ -55,7 +55,7 @@ func BuildVoteStatusEmbed(session *vote.Session) *discordgo.MessageEmbed {
 func BuildFinalVoteEmbed(submissionID, finalStatus string) *discordgo.MessageEmbed {
 	return &discordgo.MessageEmbed{
 		Title:       "✅ 投票结束",
-		Description: fmt.Sprintf("对投稿 `%s` 的投票已完成。\n\n**最终结果:** `%s`", submissionID, finalStatus),
+		Description: fmt.Sprintf("对投稿 `%s` 的投票已完成\n\n**最终结果:** `%s`", submissionID, finalStatus),
 		Color:       0x5865F2, // Discord Blurple
 	}
 }

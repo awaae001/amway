@@ -303,9 +303,9 @@ func sendBanNotification(s *discordgo.Session, userID string, isPermanent bool, 
 	}
 
 	if isPermanent {
-		embed.Description = "您的账户已被安利系统永久拒接投稿权限。"
+		embed.Description = "您的账户已被安利系统永久拒接投稿权限"
 	} else {
-		embed.Description = "您的账户已被安利系统临时封禁3天。累计3次封禁将被永久拒绝投稿。"
+		embed.Description = "您的账户已被安利系统临时封禁3天累计3次封禁将被永久拒绝投稿"
 	}
 
 	_, err = s.ChannelMessageSendEmbed(channel.ID, embed)

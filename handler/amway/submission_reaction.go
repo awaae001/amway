@@ -11,7 +11,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-// MessageReactionAdd 处理反应添加事件。
+// MessageReactionAdd 处理反应添加事件
 func MessageReactionAdd(s *discordgo.Session, r *discordgo.MessageReactionAdd) {
 	if r.UserID == s.State.User.ID || r.ChannelID != config.Cfg.AmwayBot.Amway.PublishChannelID || !isValidReaction(r.Emoji.Name) {
 		return
@@ -19,7 +19,7 @@ func MessageReactionAdd(s *discordgo.Session, r *discordgo.MessageReactionAdd) {
 	handleReactionUpdate(s, r.ChannelID, r.MessageID, r.UserID, r.Emoji.Name, "ADD")
 }
 
-// MessageReactionRemove 处理反应移除事件。
+// MessageReactionRemove 处理反应移除事件
 func MessageReactionRemove(s *discordgo.Session, r *discordgo.MessageReactionRemove) {
 	if r.UserID == s.State.User.ID || r.ChannelID != config.Cfg.AmwayBot.Amway.PublishChannelID || !isValidReaction(r.Emoji.Name) {
 		return
@@ -55,7 +55,7 @@ func handleReactionUpdate(s *discordgo.Session, channelID, messageID, userID, em
 	switch action {
 	case "ADD":
 		if oldReaction != nil && oldReaction.EmojiName == emojiName {
-			return // 用户重复使用了相同的表情符号，无需执行任何操作。
+			return // 用户重复使用了相同的表情符号，无需执行任何操作
 		}
 
 		if oldReaction != nil {
@@ -104,11 +104,11 @@ func handleReactionUpdate(s *discordgo.Session, channelID, messageID, userID, em
 		return
 	}
 
-	// 事务成功提交后，从消息中移除旧的反应。
+	// 事务成功提交后，从消息中移除旧的反应
 	if emojiToRemove != "" {
 		err := s.MessageReactionRemove(channelID, messageID, emojiToRemove, userID)
 		if err != nil {
-			// 这不是一个严重错误，只需记录日志即可。数据库已经正确无误。
+			// 这不是一个严重错误，只需记录日志即可数据库已经正确无误
 			log.Printf("Failed to remove old reaction emoji '%s' for user %s on message %s: %v", emojiToRemove, userID, messageID, err)
 		}
 	}

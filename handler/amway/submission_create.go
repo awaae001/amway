@@ -360,3 +360,57 @@ func HowToSubmitButtonHandler(s *discordgo.Session, i *discordgo.InteractionCrea
 		fmt.Printf("Error sending how-to-submit embed: %v\n", err)
 	}
 }
+
+func ConfirmPreviewHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	customID := i.MessageComponentData().CustomID
+	parts, ok := parseAndValidateCustomID(s, i, customID, 2)
+	if !ok {
+		return
+	}
+
+	cacheID := parts[1]
+	_, ok = validateCacheData(s, i, cacheID)
+	if !ok {
+		return
+	}
+
+	embeds, components := BuildAnonymityChoiceComponents(cacheID)
+	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseUpdateMessage,
+		Data: &discordgo.InteractionResponseData{
+			Embeds:     embeds,
+			Components: components,
+			Flags:      discordgo.MessageFlagsEphemeral,
+		},
+	})
+	if err != nil {
+		fmt.Printf("Error updating message for anonymity choice: %v\n", err)
+	}
+}
+
+func BackToPreviewHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	customID := i.MessageComponentData().CustomID
+	parts, ok := parseAndValidateCustomID(s, i, customID, 2)
+	if !ok {
+		return
+	}
+
+	cacheID := parts[1]
+	cacheData, ok := validateCacheData(s, i, cacheID)
+	if !ok {
+		return
+	}
+
+	embeds, components := BuildSubmissionPreviewComponents(cacheData.RecommendTitle, cacheData.RecommendContent, cacheID)
+	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseUpdateMessage,
+		Data: &discordgo.InteractionResponseData{
+			Embeds:     embeds,
+			Components: components,
+			Flags:      discordgo.MessageFlagsEphemeral,
+		},
+	})
+	if err != nil {
+		fmt.Printf("Error updating message back to preview: %v\n", err)
+	}
+}

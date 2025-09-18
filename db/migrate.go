@@ -4,9 +4,9 @@ import (
 	"log"
 )
 
-// createTables 如果数据库中不存在必要的表，则创建它们。
+// createTables 如果数据库中不存在必要的表，则创建它们
 func createTables() {
-	// 用于创建 'recommendations' 表的 SQL 语句。
+	// 用于创建 'recommendations' 表的 SQL 语句
 	createRecommendationsTableSQL := `
 	CREATE TABLE IF NOT EXISTS recommendations (
 		id TEXT PRIMARY KEY,
@@ -38,7 +38,7 @@ func createTables() {
 		log.Fatalf("Failed to create recommendations table: %v", err)
 	}
 
-	// 用于创建 'users' 表的 SQL 语句。
+	// 用于创建 'users' 表的 SQL 语句
 	createUsersTableSQL := `
 	CREATE TABLE IF NOT EXISTS users (
 		user_id TEXT PRIMARY KEY,
@@ -51,7 +51,7 @@ func createTables() {
 		log.Fatalf("Failed to create users table: %v", err)
 	}
 
-	// 用于顺序 ID 生成的 'id_counter' 表的 SQL 语句。
+	// 用于顺序 ID 生成的 'id_counter' 表的 SQL 语句
 	createIdCounterTableSQL := `
 	CREATE TABLE IF NOT EXISTS id_counter (
 		counter_name TEXT PRIMARY KEY,
@@ -63,7 +63,7 @@ func createTables() {
 		log.Fatalf("Failed to create id_counter table: %v", err)
 	}
 
-	// 用于创建 'submission_reactions' 表的 SQL 语句。
+	// 用于创建 'submission_reactions' 表的 SQL 语句
 	createSubmissionReactionsTableSQL := `
 	CREATE TABLE IF NOT EXISTS submission_reactions (
 		submission_id TEXT NOT NULL,

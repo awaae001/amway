@@ -27,7 +27,7 @@ func Start() {
 	amway.RegisterHandlers()
 	my.RegisterHandlers()
 
-	// 使用提供的机器人令牌创建一个新的 Discord 会话。
+	// 使用提供的机器人令牌创建一个新的 Discord 会话
 	dg, err = discordgo.New("Bot " + config.Cfg.Token)
 	if err != nil {
 		log.Printf("创建 Discord 会话时出错, %v", err)

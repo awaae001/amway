@@ -16,7 +16,7 @@ func BuildSubmissionLinkModal() *discordgo.InteractionResponse {
 		Type: discordgo.InteractionResponseModal,
 		Data: &discordgo.InteractionResponseData{
 			CustomID: "submission_link_modal",
-			Title:    "投稿第一步：帖子链接",
+			Title:    "步骤 1/6：提供帖子链接",
 			Components: []discordgo.MessageComponent{
 				discordgo.ActionsRow{
 					Components: []discordgo.MessageComponent{
@@ -24,7 +24,7 @@ func BuildSubmissionLinkModal() *discordgo.InteractionResponse {
 							CustomID:    "submission_url",
 							Label:       "Discord帖子链接",
 							Style:       discordgo.TextInputShort,
-							Placeholder: "请输入Discord帖子或频道链接",
+							Placeholder: "请输入要安利的Discord帖子链接（复制消息链接）",
 							Required:    true,
 						},
 					},
@@ -38,8 +38,8 @@ func BuildSubmissionLinkModal() *discordgo.InteractionResponse {
 func BuildPostConfirmationComponents(postInfo *model.DiscordPostInfo) ([]*discordgo.MessageEmbed, []discordgo.MessageComponent) {
 	postInfoText := utils.FormatDiscordPostInfo(postInfo)
 	embed := &discordgo.MessageEmbed{
-		Title:       "帖子信息确认",
-		Description: fmt.Sprintf("%s\n\n请确认以上信息无误，然后点击下方按钮继续填写安利内容", postInfoText),
+		Title:       "步骤 2/6：确认帖子信息",
+		Description: fmt.Sprintf("**已识别的帖子信息：**\n%s\n\n请仔细确认以上信息无误，然后选择继续下一步", postInfoText),
 		Color:       0x00FF00,
 	}
 
@@ -99,8 +99,8 @@ func BuildReplyChoiceComponents(cacheID string) ([]*discordgo.MessageEmbed, []di
 	}
 
 	embed := &discordgo.MessageEmbed{
-		Title:       "请确认您的投稿选项",
-		Description: "请选择：是否将您的安利作为回复发送到原帖下方？",
+		Title:       "步骤 3/6：选择回复方式",
+		Description: "**请选择投稿发布方式：**\n\n• **发送到原帖**：您的安利将作为回复出现在原帖下方\n• **仅投稿**：您的安利仅在安利频道发布\n\n💡 建议选择发送到原帖，让原作者知道您的推荐！",
 		Color:       0x0099ff, // A nice blue color
 	}
 	return []*discordgo.MessageEmbed{embed}, components
@@ -112,7 +112,7 @@ func BuildSubmissionContentModal(cacheID string, title, content string) *discord
 		Type: discordgo.InteractionResponseModal,
 		Data: &discordgo.InteractionResponseData{
 			CustomID: fmt.Sprintf("submission_content_modal:%s", cacheID),
-			Title:    "投稿第二步：安利内容",
+			Title:    "步骤 4/6：编写安利内容",
 			Components: []discordgo.MessageComponent{
 				discordgo.ActionsRow{
 					Components: []discordgo.MessageComponent{
@@ -120,7 +120,7 @@ func BuildSubmissionContentModal(cacheID string, title, content string) *discord
 							CustomID:    "recommend_title",
 							Label:       "安利标题",
 							Style:       discordgo.TextInputShort,
-							Placeholder: "请输入您的安利标题",
+							Placeholder: "用一句话概括您的安利亮点（将以粗体显示）",
 							Required:    true,
 							Value:       title,
 						},
@@ -132,7 +132,7 @@ func BuildSubmissionContentModal(cacheID string, title, content string) *discord
 							CustomID:    "recommend_content",
 							Label:       "安利内容",
 							Style:       discordgo.TextInputParagraph,
-							Placeholder: "请输入您的安利内容和推荐理由",
+							Placeholder: "详细说明推荐理由，分享您的感受和见解（20-1024字）",
 							Required:    true,
 							MinLength:   20,
 							MaxLength:   1024,
@@ -148,10 +148,10 @@ func BuildSubmissionContentModal(cacheID string, title, content string) *discord
 // BuildSubmissionPreviewComponents 创建并返回投稿预览的 Embed 和按钮
 func BuildSubmissionPreviewComponents(recommendTitle, recommendContent, cacheID string) ([]*discordgo.MessageEmbed, []discordgo.MessageComponent) {
 	embed := &discordgo.MessageEmbed{
-		Title:       "投稿预览",
-		Description: "请检查您的安利内容，确认无误后，选择下方的提交方式",
+		Title:       "步骤 5/6：预览安利内容",
+		Description: "**请仔细检查您的安利内容：**\n\n确认无误后，请点击下方按钮继续到最后一步",
 		Fields: []*discordgo.MessageEmbedField{
-			{Name: "安利标题", Value: recommendTitle},
+			{Name: "安利标题", Value: fmt.Sprintf("**%s**", recommendTitle)},
 			{Name: "安利内容", Value: recommendContent},
 		},
 		Color: 0x00BFFF,
@@ -161,16 +161,10 @@ func BuildSubmissionPreviewComponents(recommendTitle, recommendContent, cacheID 
 		discordgo.ActionsRow{
 			Components: []discordgo.MessageComponent{
 				discordgo.Button{
-					Label:    "确认提交",
+					Label:    "确认内容，继续下一步",
 					Style:    discordgo.SuccessButton,
-					CustomID: fmt.Sprintf("final_submit:%s:false", cacheID),
-					Emoji:    &discordgo.ComponentEmoji{Name: "✅"},
-				},
-				discordgo.Button{
-					Label:    "匿名提交",
-					Style:    discordgo.PrimaryButton,
-					CustomID: fmt.Sprintf("final_submit:%s:true", cacheID),
-					Emoji:    &discordgo.ComponentEmoji{Name: "👤"},
+					CustomID: fmt.Sprintf("confirm_preview:%s", cacheID),
+					Emoji:    &discordgo.ComponentEmoji{Name: "▶️"},
 				},
 				discordgo.Button{
 					Label:    "编辑内容",
@@ -265,4 +259,63 @@ func BuildHowToSubmitResponseData() *discordgo.InteractionResponseData {
 		fmt.Printf("Error reading image file, sending embed without image: %v\n", err)
 	}
 	return responseData
+}
+
+// BuildAnonymityChoiceComponents 创建并返回独立的匿名选择界面
+func BuildAnonymityChoiceComponents(cacheID string) ([]*discordgo.MessageEmbed, []discordgo.MessageComponent) {
+	embed := &discordgo.MessageEmbed{
+		Title:       "步骤 6/6：选择提交方式",
+		Description: "**请选择您的投稿提交方式：**\n\n" +
+			"**实名提交**：您的Discord用户名将显示在安利中\n" +
+			"**匿名提交**：您的用户名不会显示，保护您的隐私\n\n" +
+			"💡 **提示**：匿名提交后仍可在「我的安利」中管理您的投稿",
+		Color: 0xFF9500, // Orange color to make it stand out
+		Fields: []*discordgo.MessageEmbedField{
+			{
+				Name:   "关于匿名投稿",
+				Value:  "• 您的Discord用户名不会在发布的安利中显示\n• 管理员仍能看到您的身份以便联系\n• 投稿后可在个人面板中切换匿名状态",
+				Inline: false,
+			},
+		},
+		Footer: &discordgo.MessageEmbedFooter{
+			Text: "这是投稿的最后一步，请谨慎选择！",
+		},
+	}
+
+	components := []discordgo.MessageComponent{
+		discordgo.ActionsRow{
+			Components: []discordgo.MessageComponent{
+				discordgo.Button{
+					Label:    "实名提交",
+					Style:    discordgo.SuccessButton,
+					CustomID: fmt.Sprintf("final_submit:%s:false", cacheID),
+					Emoji:    &discordgo.ComponentEmoji{Name: "✅"},
+				},
+				discordgo.Button{
+					Label:    "匿名提交",
+					Style:    discordgo.PrimaryButton,
+					CustomID: fmt.Sprintf("final_submit:%s:true", cacheID),
+					Emoji:    &discordgo.ComponentEmoji{Name: "👤"},
+				},
+			},
+		},
+		discordgo.ActionsRow{
+			Components: []discordgo.MessageComponent{
+				discordgo.Button{
+					Label:    "返回上一步",
+					Style:    discordgo.SecondaryButton,
+					CustomID: fmt.Sprintf("back_to_preview:%s", cacheID),
+					Emoji:    &discordgo.ComponentEmoji{Name: "◀️"},
+				},
+				discordgo.Button{
+					Label:    "取消投稿",
+					Style:    discordgo.DangerButton,
+					CustomID: "cancel_submission",
+					Emoji:    &discordgo.ComponentEmoji{Name: "❌"},
+				},
+			},
+		},
+	}
+
+	return []*discordgo.MessageEmbed{embed}, components
 }

@@ -12,10 +12,10 @@ const (
 	dbSource = "./data/amway.db"
 )
 
-// DB 是全局数据库连接池。
+// DB 是全局数据库连接池
 var DB *sql.DB
 
-// InitDB 初始化 SQLite 数据库，如果表不存在则创建它们。
+// InitDB 初始化 SQLite 数据库，如果表不存在则创建它们
 func InitDB() {
 	var err error
 	DB, err = sql.Open(dbDriver, dbSource)

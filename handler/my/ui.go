@@ -37,7 +37,7 @@ func BuildMyAmwayPanelComponents(user *discordgo.User, submissions []*model.Subm
 		Timestamp: time.Now().Format(time.RFC3339),
 	}
 	if totalSubmissions == 0 {
-		profileEmbed.Description = "您还没有任何投稿记录。"
+		profileEmbed.Description = "您还没有任何投稿记录"
 	}
 	embeds = append(embeds, profileEmbed)
 
@@ -95,10 +95,10 @@ func BuildMyAmwayPanelComponents(user *discordgo.User, submissions []*model.Subm
 		Disabled: page >= totalPages,
 	}
 
-	retractButton := discordgo.Button{
-		Label:    "🗑️ 撤回投稿",
-		Style:    discordgo.DangerButton,
-		CustomID: fmt.Sprintf("retract_submission_button:%s", user.ID),
+	modifyButton := discordgo.Button{
+		Label:    "🔧 修改安利",
+		Style:    discordgo.SecondaryButton,
+		CustomID: fmt.Sprintf("modify_amway_button:%s", user.ID),
 	}
 
 	// Add a page indicator
@@ -109,7 +109,7 @@ func BuildMyAmwayPanelComponents(user *discordgo.User, submissions []*model.Subm
 
 	components := []discordgo.MessageComponent{
 		discordgo.ActionsRow{
-			Components: []discordgo.MessageComponent{prevButton, nextButton, retractButton},
+			Components: []discordgo.MessageComponent{prevButton, nextButton, modifyButton},
 		},
 	}
 
@@ -121,19 +121,19 @@ func BuildMyAmwayPanelComponents(user *discordgo.User, submissions []*model.Subm
 	}, nil
 }
 
-// BuildRetractModal builds the modal for retracting a submission.
-func BuildRetractModal(userID string) *discordgo.InteractionResponse {
+// BuildModifyAmwayModal builds the modal for modifying a submission.
+func BuildModifyAmwayModal(userID string) *discordgo.InteractionResponse {
 	return &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseModal,
 		Data: &discordgo.InteractionResponseData{
-			CustomID: fmt.Sprintf("retract_submission_modal:%s", userID),
-			Title:    "撤回投稿",
+			CustomID: fmt.Sprintf("modify_amway_modal:%s", userID),
+			Title:    "修改安利",
 			Components: []discordgo.MessageComponent{
 				discordgo.ActionsRow{
 					Components: []discordgo.MessageComponent{
 						discordgo.TextInput{
-							CustomID:    "submission_id_to_retract",
-							Label:       "请输入要撤回的投稿ID",
+							CustomID:    "submission_id_to_modify",
+							Label:       "请输入要修改的投稿ID",
 							Style:       discordgo.TextInputShort,
 							Placeholder: "例如：123",
 							Required:    true,
@@ -142,6 +142,76 @@ func BuildRetractModal(userID string) *discordgo.InteractionResponse {
 				},
 			},
 		},
+	}
+}
+
+// BuildModificationPanel builds the modification panel for a specific submission.
+func BuildModificationPanel(submission *model.Submission) *discordgo.InteractionResponseData {
+	// Determine anonymity status for the button label
+	anonymityLabel := "切换为匿名"
+	if submission.IsAnonymous {
+		anonymityLabel = "切换为实名"
+	}
+
+	// Build the main embed with submission details
+	embed := &discordgo.MessageEmbed{
+		Title:       fmt.Sprintf("正在修改安利: %s", submission.ID),
+		Description: fmt.Sprintf("**标题:** %s\n\n**内容:**\n%s", submission.RecommendTitle, submission.RecommendContent),
+		Color:       0xFFA500, // Orange color for modification
+		Fields: []*discordgo.MessageEmbedField{
+			{
+				Name:   "当前状态",
+				Value:  fmt.Sprintf("匿名状态: **%t**", submission.IsAnonymous),
+				Inline: true,
+			},
+			{
+				Name:   "帖子内小纸条",
+				Value:  fmt.Sprintf("已发送: **%t**", submission.ThreadMessageID != "" && submission.ThreadMessageID != "0"),
+				Inline: true,
+			},
+		},
+		Footer: &discordgo.MessageEmbedFooter{
+			Text: fmt.Sprintf("安利ID: %s", submission.ID),
+		},
+	}
+
+	// Define the action buttons
+	retractPostButton := discordgo.Button{
+		Label:    "↩️ 撤回帖子",
+		Style:    discordgo.SecondaryButton,
+		CustomID: fmt.Sprintf("retract_post_button:%s", submission.ID),
+		Disabled: submission.ThreadMessageID == "" || submission.ThreadMessageID == "0",
+	}
+
+	toggleAnonymityButton := discordgo.Button{
+		Label:    fmt.Sprintf("👤 %s", anonymityLabel),
+		Style:    discordgo.PrimaryButton,
+		CustomID: fmt.Sprintf("toggle_anonymity_button:%s", submission.ID),
+	}
+
+	deleteAmwayButton := discordgo.Button{
+		Label:    "🗑️ 删除安利",
+		Style:    discordgo.DangerButton,
+		CustomID: fmt.Sprintf("delete_amway_button:%s", submission.ID),
+	}
+
+	backToMyAmwayButton := discordgo.Button{
+		Label:    "🔙 返回我的安利",
+		Style:    discordgo.SecondaryButton,
+		CustomID: fmt.Sprintf("back_to_my_amway:%s", submission.UserID),
+	}
+
+	return &discordgo.InteractionResponseData{
+		Embeds: []*discordgo.MessageEmbed{embed},
+		Components: []discordgo.MessageComponent{
+			discordgo.ActionsRow{
+				Components: []discordgo.MessageComponent{retractPostButton, toggleAnonymityButton, deleteAmwayButton},
+			},
+			discordgo.ActionsRow{
+				Components: []discordgo.MessageComponent{backToMyAmwayButton},
+			},
+		},
+		Flags: discordgo.MessageFlagsEphemeral,
 	}
 }
 
