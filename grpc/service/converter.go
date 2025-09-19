@@ -3,7 +3,24 @@ package service
 import (
 	recommendationPb "amway/grpc/gen/recommendation"
 	"amway/model"
+	"strings"
 )
+
+// convertStatusToAuditStatus converts a string status to AuditStatus enum
+func convertStatusToAuditStatus(status string) recommendationPb.AuditStatus {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "pending":
+		return recommendationPb.AuditStatus_AUDIT_STATUS_PENDING
+	case "approved", "featured":
+		return recommendationPb.AuditStatus_AUDIT_STATUS_APPROVED
+	case "rejected", "denied":
+		return recommendationPb.AuditStatus_AUDIT_STATUS_REJECTED
+	case "under_review", "reviewing":
+		return recommendationPb.AuditStatus_AUDIT_STATUS_UNDER_REVIEW
+	default:
+		return recommendationPb.AuditStatus_AUDIT_STATUS_UNSPECIFIED
+	}
+}
 
 // SubmissionToRecommendationSlip converts a model.Submission to a RecommendationSlip protobuf message
 func SubmissionToRecommendationSlip(submission *model.Submission) (*recommendationPb.RecommendationSlip, error) {
@@ -31,6 +48,7 @@ func SubmissionToRecommendationSlip(submission *model.Submission) (*recommendati
 		FinalAmwayMessageId:   submission.FinalAmwayMessageID,
 		IsDeleted:             false, // Assuming default is false as it's not in model
 		IsAnonymous:           submission.IsAnonymous,
+		AuditStatus:           convertStatusToAuditStatus(submission.Status),
 	}, nil
 }
 

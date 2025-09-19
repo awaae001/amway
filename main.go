@@ -1,3 +1,7 @@
+//go:generate mkdir -p grpc/gen/registry grpc/gen/recommendation
+//go:generate protoc --go_out=grpc/gen/registry --go_opt=paths=source_relative --go-grpc_out=grpc/gen/registry --go-grpc_opt=paths=source_relative --proto_path=grpc/proto grpc/proto/registry.proto
+//go:generate protoc --go_out=grpc/gen/recommendation --go_opt=paths=source_relative --go-grpc_out=grpc/gen/recommendation --go-grpc_opt=paths=source_relative --proto_path=doc/proto doc/proto/recommendation.proto
+
 package main
 
 import (

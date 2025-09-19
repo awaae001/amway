@@ -41,6 +41,7 @@ type GRPCClient struct {
 	serverAddress string
 	clientName    string
 	token         string
+	connectionID  string // 服务器分配的连接UUID
 
 	// 连接状态管理
 	connectionState int32 // 使用 atomic 操作

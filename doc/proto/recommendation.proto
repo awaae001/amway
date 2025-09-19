@@ -14,6 +14,15 @@ service RecommendationService {
       returns (GetRecommendationsByAuthorResponse);
 }
 
+// Enum Definitions
+enum AuditStatus {
+  AUDIT_STATUS_UNSPECIFIED = 0;  // 未指定状态
+  AUDIT_STATUS_PENDING = 1;      // 待审核
+  AUDIT_STATUS_APPROVED = 2;     // 已通过
+  AUDIT_STATUS_REJECTED = 3;     // 已拒绝
+  AUDIT_STATUS_UNDER_REVIEW = 4; // 审核中
+}
+
 // Message Definitions
 message RecommendationSlip {
   string id = 1;              // 安利小纸条的唯一 ID
@@ -21,29 +30,32 @@ message RecommendationSlip {
   string author_nickname = 3; // 作者当时的昵称
   string content = 4;         // 安利内容
   string post_url = 5;        // 指向相关帖子的 URL
-  int32 upvotes = 6;          // 获得的“点赞”数
-  int32 questions = 7;        // 获得的“疑问”数
-  int32 downvotes = 8;        // 获得的“点踩”数
+  int32 upvotes = 6;          // 获得的"点赞"数
+  int32 questions = 7;        // 获得的"疑问"数
+  int32 downvotes = 8;        // 获得的"点踩"数
   int64 created_at = 9;       // 创建时间戳 (Unix timestamp)
   string reviewer_id = 10;    // 审定该小纸条的管理员 ID
   string guild_id = 11;       // 小纸条所属的 Discord 服务器 ID
-  string original_title = 12;
-  string original_author = 13;
-  string recommend_title = 14;
-  string recommend_content = 15;
-  string original_post_timestamp = 16;
-  string final_amway_message_id = 17;
-  bool is_deleted = 18;
-  bool is_anonymous = 19;
+  string original_title = 12;       // 原帖标题
+  string original_author = 13;      // 原帖作者
+  string recommend_title = 14;      // 推荐标题
+  string recommend_content = 15;    // 推荐内容
+  string original_post_timestamp = 16; // 原帖时间戳
+  string final_amway_message_id = 17;  // 最终安利消息 ID
+  bool is_deleted = 18;             // 是否已删除
+  bool is_anonymous = 19;           // 是否匿名提交
+  AuditStatus audit_status = 20;    // 审核状态
 }
 
-message GetRecommendationRequest { string id = 1; }
+message GetRecommendationRequest {
+  string id = 1;  // 安利小纸条的唯一 ID
+}
 
 message GetRecommendationsByAuthorRequest {
-  string author_id = 1;
-  string guild_id = 2;
+  string author_id = 1;  // 作者的 Discord 用户 ID
+  string guild_id = 2;   // Discord 服务器 ID
 }
 
 message GetRecommendationsByAuthorResponse {
-  repeated RecommendationSlip recommendations = 1;
+  repeated RecommendationSlip recommendations = 1;  // 安利小纸条列表
 }

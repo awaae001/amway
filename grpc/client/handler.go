@@ -28,7 +28,7 @@ func (c *GRPCClient) handleConnectionMessages(stream registryPb.RegistryService_
 		}
 	}()
 
-	heartbeatTicker := time.NewTicker(25 * time.Second)
+	heartbeatTicker := time.NewTicker(15 * time.Second)
 	defer heartbeatTicker.Stop()
 
 	defer func() {
@@ -50,18 +50,22 @@ func (c *GRPCClient) handleConnectionMessages(stream registryPb.RegistryService_
 			return
 		case <-heartbeatTicker.C:
 			// 发送心跳
+			connectionID := c.connectionID
+			if connectionID == "" {
+				connectionID = c.clientName // 回退到客户端名称
+			}
 			heartbeatMsg := &registryPb.ConnectionMessage{
 				MessageType: &registryPb.ConnectionMessage_Heartbeat{
 					Heartbeat: &registryPb.Heartbeat{
 						Timestamp:    time.Now().Unix(),
-						ConnectionId: c.clientName,
+						ConnectionId: connectionID,
 					},
 				},
 			}
 			if err := stream.Send(heartbeatMsg); err != nil {
 				log.Printf("发送心跳失败: %v", err)
 			} else {
-				// log.Printf("发送心跳包 -> %s", c.clientName)
+				log.Printf("发送心跳包 -> ConnectionID: %s", connectionID)
 			}
 		}
 	}
@@ -87,6 +91,11 @@ func (c *GRPCClient) processMessage(msg *registryPb.ConnectionMessage) {
 	case *registryPb.ConnectionMessage_Status:
 		// 处理状态消息
 		log.Printf("收到状态消息: %v", msgType.Status)
+		// 保存服务器分配的连接ID
+		if msgType.Status.ConnectionId != "" {
+			c.connectionID = msgType.Status.ConnectionId
+			log.Printf("已保存连接ID: %s", c.connectionID)
+		}
 	}
 }
 
@@ -100,14 +109,17 @@ func (c *GRPCClient) handleForwardRequest(stream registryPb.RegistryService_Esta
 	ctx := context.Background()
 
 	// 根据方法路径路由到相应的服务
-	// 根据方法路径路由到相应的服务
 	methodGetRecommendation := fmt.Sprintf("/%s.RecommendationService/GetRecommendation", c.clientName)
 	methodGetRecommendationsByAuthor := fmt.Sprintf("/%s.RecommendationService/GetRecommendationsByAuthor", c.clientName)
 
+	// 处理网关可能发送的重复 RecommendationService 路径
+	methodGetRecommendationDup := fmt.Sprintf("/%s.RecommendationService.RecommendationService/GetRecommendation", c.clientName)
+	methodGetRecommendationsByAuthorDup := fmt.Sprintf("/%s.RecommendationService.RecommendationService/GetRecommendationsByAuthor", c.clientName)
+
 	switch req.MethodPath {
-	case methodGetRecommendation:
+	case methodGetRecommendation, methodGetRecommendationDup:
 		responsePayload, statusCode, errorMessage = c.handleGetRecommendation(ctx, req.Payload)
-	case methodGetRecommendationsByAuthor:
+	case methodGetRecommendationsByAuthor, methodGetRecommendationsByAuthorDup:
 		responsePayload, statusCode, errorMessage = c.handleGetRecommendationsByAuthor(ctx, req.Payload)
 	default:
 		statusCode = 404
@@ -198,11 +210,15 @@ func (c *GRPCClient) handleHeartbeat(stream registryPb.RegistryService_Establish
 
 	// 回复心跳
 	responseTime := time.Now().Unix()
+	connectionID := c.connectionID
+	if connectionID == "" {
+		connectionID = c.clientName // 回退到客户端名称
+	}
 	response := &registryPb.ConnectionMessage{
 		MessageType: &registryPb.ConnectionMessage_Heartbeat{
 			Heartbeat: &registryPb.Heartbeat{
 				Timestamp:    responseTime,
-				ConnectionId: c.clientName,
+				ConnectionId: connectionID,
 			},
 		},
 	}
@@ -212,7 +228,7 @@ func (c *GRPCClient) handleHeartbeat(stream registryPb.RegistryService_Establish
 		log.Printf("❌ 发送心跳响应失败: %v", err)
 	} else {
 		log.Printf("已发送心跳响应 - ConnectionID: %s, 响应时间: %s",
-			c.clientName,
+			connectionID,
 			time.Unix(responseTime, 0).Format("15:04:05"))
 	}
 }
