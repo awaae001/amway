@@ -65,7 +65,7 @@ func (c *GRPCClient) handleConnectionMessages(stream registryPb.RegistryService_
 			if err := stream.Send(heartbeatMsg); err != nil {
 				log.Printf("发送心跳失败: %v", err)
 			} else {
-				log.Printf("发送心跳包 -> ConnectionID: %s", connectionID)
+				// log.Printf("发送心跳包 -> ConnectionID: %s", connectionID)
 			}
 		}
 	}

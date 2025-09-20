@@ -186,6 +186,9 @@ func (c *GRPCClient) triggerReconnect() {
 func (c *GRPCClient) performReconnect() {
 	c.setConnectionState(Reconnecting)
 
+	// 清除旧的连接ID
+	c.connectionID = ""
+
 	// 关闭当前连接
 	c.connectionMutex.Lock()
 	if c.conn != nil {
