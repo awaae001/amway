@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+package role_center;
+
+option go_package = "grpc/gen/role_center";
+
+// RoleService 定义了与身份组相关的查询功能
+service RoleService {
+  // 查询一个用户拥有的所有身份组
+  rpc GetUserRoles(GetUserRolesRequest) returns (GetUserRolesResponse);
+
+  // 查询一个身份组下的所有用户
+  rpc GetRoleAssignments(GetRoleAssignmentsRequest) returns (GetRoleAssignmentsResponse);
+
+  // 为用户分配身份组
+  rpc AssignRole(AssignRoleRequest) returns (AssignRoleResponse);
+}
+
+// 代表一个身份组
+message Role {
+  string id = 1;   // 身份组的唯一 ID (例如 Discord Role ID)
+  string name = 2; // 身份组的名称 (将从 role_assignments.json 或其他映射中获取)
+}
+
+// 代表一个被分配了身份组的用户
+message AssignedUser {
+  string user_id = 1;      // 用户的唯一 ID (例如 Discord User ID)
+  int64 assigned_at = 2;   // 身份组分配操作的时间戳 (Unix timestamp)
+}
+
+// GetUserRoles 的请求消息
+message GetUserRolesRequest {
+  string user_id = 1;  // 要查询的用户的 ID
+  string guild_id = 2; // 服务器的 ID
+}
+
+// GetUserRoles 的响应消息
+message GetUserRolesResponse {
+  repeated Role roles = 1; // 用户拥有的身份组列表
+}
+
+// GetRoleAssignments 的请求消息
+message GetRoleAssignmentsRequest {
+  string role_id = 1;  // 要查询的身份组的 ID
+  string guild_id = 2; // 服务器的 ID
+}
+
+// GetRoleAssignments 的响应消息
+message GetRoleAssignmentsResponse {
+  repeated AssignedUser users = 1; // 该身份组下的用户列表
+}
+
+// AssignRole 的请求消息
+message AssignRoleRequest {
+  string user_id = 1;       // 要分配身份组的用户的 ID
+  string guild_id = 2;      // 服务器的 ID
+  string role_id = 3;       // 要分配的身份组的 ID
+  string operator_id = 4;   // 可选的操作 ID
+}
+
+// AssignRole 的响应消息
+message AssignRoleResponse {
+  bool success = 1;         // 操作是否成功
+  string message = 2;       // 附加信息
+}

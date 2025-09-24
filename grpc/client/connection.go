@@ -9,6 +9,7 @@ import (
 
 	recommendationPb "amway/grpc/gen/recommendation"
 	registryPb "amway/grpc/gen/registry"
+	rolePb "amway/grpc/gen/role_center"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
@@ -90,6 +91,7 @@ func (c *GRPCClient) doConnect() error {
 	c.conn = conn
 	c.registryClient = registryPb.NewRegistryServiceClient(conn)
 	c.recommendationClient = recommendationPb.NewRecommendationServiceClient(conn)
+	c.roleClient = rolePb.NewRoleServiceClient(conn)
 
 	return nil
 }

@@ -16,6 +16,7 @@ func RegisterHandlers() {
 	handler.AddCommandHandler(def.AmwayAdminCommand.Name, amway_admin.AmwayAdminCommandHandler)
 	handler.AddCommandHandler(def.LookupCommand.Name, LookupCommandHandler)
 	handler.AddCommandHandler(def.RebuildCommand.Name, RebuildCommandHandler)
+	handler.AddCommandHandler(def.TestAssignRoleCommand.Name, TestAssignRoleHandler)
 
 	// 两步投稿流程
 	handler.AddModalHandler("submission_link_modal", LinkSubmissionHandler)

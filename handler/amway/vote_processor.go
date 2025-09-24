@@ -6,6 +6,7 @@ import (
 	"amway/db"
 	"amway/handler/tools"
 	"amway/model"
+	"amway/shared"
 	"amway/utils"
 	"amway/vote"
 	"fmt"
@@ -233,6 +234,20 @@ func handleStatusChange(s *discordgo.Session, submission *model.Submission, fina
 
 	// If the submission was pending and is now approved or featured, send the publication messages.
 	if submission.Status == "pending" && (finalStatus == "approved" || finalStatus == "featured") {
+
+		// 在投稿通过后，分发身份组
+		if shared.GRPCClient != nil && shared.GRPCClient.IsConnected() {
+			go func() {
+				success, err := shared.GRPCClient.AssignRole(submission.GuildID, "0", submission.UserID)
+				if err != nil {
+					log.Printf("为用户 %s 分配身份组失败: %v", submission.UserID, err)
+				} else if success {
+					log.Printf("成功为用户 %s 分配身份组", submission.UserID)
+				} else {
+					log.Printf("为用户 %s 分配身份组未成功，但没有错误返回", submission.UserID)
+				}
+			}()
+		}
 		PublishSubmission(s, submission, replyToOriginal)
 	}
 }

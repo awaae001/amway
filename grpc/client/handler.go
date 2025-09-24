@@ -85,6 +85,9 @@ func (c *GRPCClient) processMessage(msg *registryPb.ConnectionMessage) {
 	case *registryPb.ConnectionMessage_Request:
 		// 处理转发请求
 		c.handleForwardRequest(stream, msgType.Request)
+	case *registryPb.ConnectionMessage_Response:
+		// 处理转发响应
+		c.handleForwardResponse(msgType.Response)
 	case *registryPb.ConnectionMessage_Heartbeat:
 		// 处理心跳
 		c.handleHeartbeat(stream, msgType.Heartbeat)
@@ -196,6 +199,26 @@ func (c *GRPCClient) handleGetRecommendationsByAuthor(ctx context.Context, paylo
 	}
 
 	return responsePayload, 200, ""
+}
+
+func (c *GRPCClient) handleForwardResponse(resp *registryPb.ForwardResponse) {
+	log.Printf("收到网关响应: %s (状态码: %d)", resp.RequestId, resp.StatusCode)
+
+	c.pendingMutex.RLock()
+	responseChan, exists := c.pendingRequests[resp.RequestId]
+	c.pendingMutex.RUnlock()
+
+	if exists && responseChan != nil {
+		// 非阻塞发送响应
+		select {
+		case responseChan <- resp:
+			log.Printf("已转发响应到等待通道: %s", resp.RequestId)
+		default:
+			log.Printf("响应通道已满或已关闭: %s", resp.RequestId)
+		}
+	} else {
+		log.Printf("未找到对应的等待请求: %s", resp.RequestId)
+	}
 }
 
 func (c *GRPCClient) handleHeartbeat(stream registryPb.RegistryService_EstablishConnectionClient, heartbeat *registryPb.Heartbeat) {

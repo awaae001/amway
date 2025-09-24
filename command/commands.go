@@ -12,4 +12,5 @@ var AllCommands = []*discordgo.ApplicationCommand{
 	def.CreatePanelCommand,
 	def.LookupCommand,
 	def.RebuildCommand,
+	def.TestAssignRoleCommand,
 }
