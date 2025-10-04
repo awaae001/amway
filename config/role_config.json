@@ -4,7 +4,7 @@
             "0":{
                 "config_id": 0,
                 "name": "amway 智能远程分发",
-                "start_at": "1759075200",
+                "start_at": "1759120200",
                 "end_at": "1761926399",
                 "grpc_config":{
                     "address": "/role_center.RoleService/AssignRole",
