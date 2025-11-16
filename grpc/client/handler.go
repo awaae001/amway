@@ -114,16 +114,20 @@ func (c *GRPCClient) handleForwardRequest(stream registryPb.RegistryService_Esta
 	// 根据方法路径路由到相应的服务
 	methodGetRecommendation := fmt.Sprintf("/%s.RecommendationService/GetRecommendation", c.clientName)
 	methodGetRecommendationsByAuthor := fmt.Sprintf("/%s.RecommendationService/GetRecommendationsByAuthor", c.clientName)
+	methodCreateRecommendation := fmt.Sprintf("/%s.RecommendationService/CreateRecommendation", c.clientName)
 
 	// 处理网关可能发送的重复 RecommendationService 路径
 	methodGetRecommendationDup := fmt.Sprintf("/%s.RecommendationService.RecommendationService/GetRecommendation", c.clientName)
 	methodGetRecommendationsByAuthorDup := fmt.Sprintf("/%s.RecommendationService.RecommendationService/GetRecommendationsByAuthor", c.clientName)
+	methodCreateRecommendationDup := fmt.Sprintf("/%s.RecommendationService.RecommendationService/CreateRecommendation", c.clientName)
 
 	switch req.MethodPath {
 	case methodGetRecommendation, methodGetRecommendationDup:
 		responsePayload, statusCode, errorMessage = c.handleGetRecommendation(ctx, req.Payload)
 	case methodGetRecommendationsByAuthor, methodGetRecommendationsByAuthorDup:
 		responsePayload, statusCode, errorMessage = c.handleGetRecommendationsByAuthor(ctx, req.Payload)
+	case methodCreateRecommendation, methodCreateRecommendationDup:
+		responsePayload, statusCode, errorMessage = c.handleCreateRecommendation(ctx, req.Payload)
 	default:
 		statusCode = 404
 		errorMessage = fmt.Sprintf("未知的方法路径: %s", req.MethodPath)
@@ -197,6 +201,36 @@ func (c *GRPCClient) handleGetRecommendationsByAuthor(ctx context.Context, paylo
 		log.Printf("序列化 GetRecommendationsByAuthor 响应失败: %v", err)
 		return nil, 500, fmt.Sprintf("响应序列化失败: %v", err)
 	}
+
+	return responsePayload, 200, ""
+}
+
+func (c *GRPCClient) handleCreateRecommendation(ctx context.Context, payload []byte) ([]byte, int32, string) {
+	// 解析请求
+	var req recommendationPb.CreateRecommendationRequest
+	err := proto.Unmarshal(payload, &req)
+	if err != nil {
+		log.Printf("解析 CreateRecommendation 请求失败: %v", err)
+		return nil, 400, fmt.Sprintf("请求解析失败: %v", err)
+	}
+
+	log.Printf("收到创建推荐请求: 标题=%s, 作者=%s, GuildID=%s", req.RecommendTitle, req.AuthorId, req.GuildId)
+
+	// 调用本地服务
+	resp, err := c.localRecommendationService.CreateRecommendation(ctx, &req)
+	if err != nil {
+		log.Printf("CreateRecommendation 服务调用失败: %v", err)
+		return nil, 500, fmt.Sprintf("服务调用失败: %v", err)
+	}
+
+	// 序列化响应
+	responsePayload, err := proto.Marshal(resp)
+	if err != nil {
+		log.Printf("序列化 CreateRecommendation 响应失败: %v", err)
+		return nil, 500, fmt.Sprintf("响应序列化失败: %v", err)
+	}
+
+	log.Printf("CreateRecommendation 处理完成: success=%v, id=%s, message=%s", resp.Success, resp.Id, resp.Message)
 
 	return responsePayload, 200, ""
 }

@@ -5,6 +5,7 @@ import (
 	"amway/config"
 	"amway/handler/amway"
 	"amway/handler/my"
+	"amway/shared"
 	"log"
 	"os"
 	"os/signal"
@@ -40,6 +41,12 @@ func Start() {
 	if err != nil {
 		log.Printf("error opening connection, %v", err)
 		return
+	}
+
+	// 设置 Discord Session 到 gRPC 客户端（如果 gRPC 客户端已初始化）
+	if shared.GRPCClient != nil {
+		shared.GRPCClient.SetDiscordSession(dg)
+		log.Printf("Discord Session 已设置到 gRPC 客户端")
 	}
 
 	for _, guildID := range config.Cfg.Commands.Allowguils {

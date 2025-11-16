@@ -12,6 +12,9 @@ service RecommendationService {
   // 查询一个用户ID全部的小纸条
   rpc GetRecommendationsByAuthor(GetRecommendationsByAuthorRequest)
       returns (GetRecommendationsByAuthorResponse);
+
+  // 远程创建一个安利小纸条
+  rpc CreateRecommendation(CreateRecommendationRequest) returns (CreateRecommendationResponse);
 }
 
 // Enum Definitions
@@ -58,4 +61,23 @@ message GetRecommendationsByAuthorRequest {
 
 message GetRecommendationsByAuthorResponse {
   repeated RecommendationSlip recommendations = 1;  // 安利小纸条列表
+}
+
+message CreateRecommendationRequest {
+  string recommend_title = 1;         // 推荐标题
+  string recommend_content = 2;       // 推荐内容
+  string author_id = 3;               // 作者的 Discord 用户 ID
+  string author_nickname = 4;         // 作者的昵称
+  string post_url = 5;                // 原帖链接
+  string original_author = 6;         // 原帖作者的 Discord 用户 ID
+  string original_title = 7;          // 原帖标题（可选）
+  string original_post_timestamp = 8; // 原帖时间戳（可选）
+  string guild_id = 9;                // Discord 服务器 ID
+  bool is_anonymous = 10;             // 是否匿名提交
+}
+
+message CreateRecommendationResponse {
+  string id = 1;                      // 创建的安利小纸条 ID
+  bool success = 2;                   // 是否创建成功
+  string message = 3;                 // 返回消息（错误信息或成功提示）
 }

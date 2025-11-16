@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bwmarrin/discordgo"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 
@@ -91,6 +92,13 @@ func NewGRPCClient() *GRPCClient {
 		pendingRequests: make(map[string]chan *registryPb.ForwardResponse),
 	}
 }
+
+// SetDiscordSession sets the Discord session for the local recommendation service
+func (c *GRPCClient) SetDiscordSession(session *discordgo.Session) {
+	c.localRecommendationService.SetDiscordSession(session)
+	log.Printf("Discord Session 已设置到本地推荐服务")
+}
+
 func (c *GRPCClient) Start() {
 	go func() {
 		if err := c.Connect(); err != nil {
@@ -122,7 +130,7 @@ func (c *GRPCClient) Register() error {
 		Address: c.clientName, // 使用客户端名称作为地址
 		Services: []string{
 			fmt.Sprintf("%s.RecommendationService", c.clientName), // 注册 recommendation 服务
-			"role_center.RoleService", // 临时加回来测试
+			"role_center.RoleService",                             // 临时加回来测试
 		},
 	}
 
